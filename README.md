@@ -2,7 +2,7 @@
 
 **AI-guided next best action selection for rising-risk Medicaid ACO care management**
 
-Basu S, Sheth P, Patel S. *The Lancet Digital Health* (under review), 2026.
+Basu S, Sheth P, Patel S. Manuscript under review, 2026.
 
 ---
 
@@ -10,11 +10,7 @@ Basu S, Sheth P, Patel S. *The Lancet Digital Health* (under review), 2026.
 
 Current ACO care management programs route patients to interventions using risk scores — they identify *who* needs care but not *which* care. PEARL learns which intervention type produces better outcomes for each patient profile, using a causal identification strategy that does not require population-level unconfoundedness assumptions.
 
-**Key results (N = 34,971 rising-risk Medicaid patients):**
-- Intervention Misalignment Index under behavioral routing: **10.0%** (95% CI 9.3–10.6%; E-value 11.31)
-- PEARL reduces IMI to **2.0%** (Δ = 7.9 pp; p < 0.001) — 80% of the maximum achievable reduction
-- PEARL ranks 3rd of 13 evaluated policies on doubly robust off-policy evaluation (DR-OPE = 0.039), outperforming all eight published comparators
-- 2.0-fold socioeconomic deprivation gradient in IMI (6.8% ADI Q1 → 13.9% ADI Q5)
+Results are reported in the accompanying manuscript (under review). This repository provides the complete code pipeline for reproducing the analysis on ACO care management data or running the synthetic demonstration.
 
 ---
 
@@ -140,7 +136,7 @@ Twenty pre-specified analyses vary seven parameters (window length, IPTW clip, D
 bash scripts/run_sensitivity.sh
 ```
 
-DR-OPE direction is preserved across all 20 analyses. The IMI threshold sensitivity (ε = 0.01) is a pre-specified major finding: at a 1 pp threshold, PEARL IMI rises to 21.7%; the 2 pp primary threshold was pre-specified as the minimum clinically meaningful difference.
+Results of all 20 sensitivity analyses are reported in the accompanying manuscript. The ε = 0.01 IMI threshold analysis is pre-specified as a major sensitivity finding.
 
 ---
 
@@ -151,9 +147,8 @@ DR-OPE direction is preserved across all 20 analyses. The IMI threshold sensitiv
   title   = {{PEARL}: {AI}-guided next best action selection for rising-risk
              {Medicaid} {ACO} care management --- a within-patient natural experiment},
   author  = {Basu, Sanjay and Sheth, Parth and Patel, Sadiq},
-  journal = {The Lancet Digital Health},
   year    = {2026},
-  note    = {Under review}
+  note    = {Manuscript under review}
 }
 ```
 
@@ -163,4 +158,4 @@ DR-OPE direction is preserved across all 20 analyses. The IMI threshold sensitiv
 
 Apache License 2.0.
 
-Proprietary ACO care management data used in the manuscript is not included. A data use agreement template for ACO replication is available from the corresponding author (sanjaybasu@waymark.com).
+Proprietary ACO care management data used in the manuscript is not included. A data use agreement template for ACO replication is available from the corresponding author (sanjay.basu@ucsf.edu).
