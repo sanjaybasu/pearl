@@ -238,39 +238,79 @@ def fig_sensitivity(outpath: str, sens_csv: str = "outputs/results/sensitivity_r
 
     df = pd.read_csv(sens_csv)
 
-    # Build label from parameter + value; mark primary values
-    df["label"] = df["parameter"].str.replace("_", " ").str.title() + " = " + df["value"].astype(str)
-    df["label"] = df.apply(
-        lambda r: r["label"] + " ★" if r["is_primary"] else r["label"], axis=1
-    )
+    # Short, readable labels: "t_min = 60 (★)" instead of long title-case
+    PARAM_ABBREV = {
+        "t_min": "Min. window (days)",
+        "iptw_clip": "IPTW clip",
+        "dpo_beta": "DPO β",
+        "outcome_window": "Outcome window (days)",
+        "trajectory_adj": "Trajectory adjust",
+        "wpad_type": "WPAD type",
+        "imi_threshold": "IMI threshold ε",
+    }
+    def _short_label(row):
+        param = PARAM_ABBREV.get(row["parameter"], row["parameter"].replace("_", " "))
+        star = " ★" if row["is_primary"] else ""
+        return f"{param} = {row['value']}{star}"
+
+    df["label"] = df.apply(_short_label, axis=1)
 
     n = len(df)
-    drope_vals = df["drope_estimate"].values
-    imi_vals = df["imi_estimate"].values
+    drope_vals = df["drope_estimate"].values.astype(float)
+    imi_vals   = df["imi_estimate"].values.astype(float)
     labels = df["label"].tolist()
 
+    # Add small vertical jitter when x-values are identical, to separate overlapping points
+    rng = np.random.default_rng(42)
+    def _jitter(vals):
+        jittered = vals.copy()
+        seen = {}
+        for i, v in enumerate(vals):
+            key = round(v, 6)
+            if key not in seen:
+                seen[key] = []
+            seen[key].append(i)
+        for key, idxs in seen.items():
+            if len(idxs) > 1:
+                offsets = np.linspace(-0.0005, 0.0005, len(idxs))
+                for j, idx in enumerate(idxs):
+                    jittered[idx] = vals[idx] + offsets[j]
+        return jittered
+
+    drope_plot = _jitter(drope_vals)
+    imi_plot   = _jitter(imi_vals)
+
     drope_primary = df.loc[df["is_primary"].astype(bool), "drope_estimate"].mean() if df["is_primary"].any() else float(drope_vals.mean())
-    imi_primary = df.loc[df["is_primary"].astype(bool), "imi_estimate"].mean() if df["is_primary"].any() else float(imi_vals.mean())
+    imi_primary   = df.loc[df["is_primary"].astype(bool), "imi_estimate"].mean()   if df["is_primary"].any() else float(imi_vals.mean())
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, max(5.5, n * 0.35)))
+    fig_h = max(8.0, n * 0.48)
+    fig, axes = plt.subplots(1, 2, figsize=(13, fig_h))
+    fig.subplots_adjust(left=0.28, right=0.97, top=0.94, bottom=0.06, wspace=0.30)
 
-    for ax, vals, primary, xlabel, title in [
-        (axes[0], drope_vals, drope_primary,
-         "DR-OPE policy value (PEARL, lower = better)",
-         "A. DR-OPE across sensitivity analyses"),
-        (axes[1], imi_vals, imi_primary,
+    for ax, vals_plot, vals_raw, primary, xlabel, title in [
+        (axes[0], drope_plot, drope_vals, drope_primary,
+         "DR-OPE policy value (lower = better)",
+         "A. DR-OPE"),
+        (axes[1], imi_plot, imi_vals, imi_primary,
          "IMI estimate (lower = better)",
-         "B. IMI across sensitivity analyses"),
+         "B. IMI"),
     ]:
         colors = [BLUE if not df["direction_change"].iloc[i] else RED for i in range(n)]
-        ax.scatter(vals, range(n), color=colors, s=28, zorder=3)
+        ax.scatter(vals_plot, range(n), color=colors, s=40, zorder=3)
         ax.axvline(primary, color=RED, ls="--", lw=1.0, label="Primary result")
+
+        # x-axis: zoom to data range with 10% padding
+        lo, hi = vals_raw.min(), vals_raw.max()
+        pad = max((hi - lo) * 0.15, 0.001)
+        ax.set_xlim(lo - pad, hi + pad)
+
         ax.set_yticks(range(n))
-        ax.set_yticklabels(labels, fontsize=7)
-        ax.set_xlabel(xlabel, fontsize=8)
-        ax.set_title(title, fontsize=8.5, loc="left")
-        ax.legend(fontsize=7.5)
-        ax.grid(axis="x", lw=0.4, alpha=0.4)
+        ax.set_yticklabels(labels, fontsize=8.5)
+        ax.set_xlabel(xlabel, fontsize=9)
+        ax.set_title(title, fontsize=9.5, loc="left")
+        ax.legend(fontsize=8, loc="lower right")
+        ax.grid(axis="x", lw=0.5, alpha=0.5)
+        ax.invert_yaxis()   # row 0 at top
 
     n_direction = int(df["direction_change"].sum()) if "direction_change" in df.columns else 0
     n_retrain = int(df["requires_retrain"].sum()) if "requires_retrain" in df.columns else 0
@@ -278,9 +318,164 @@ def fig_sensitivity(outpath: str, sens_csv: str = "outputs/results/sensitivity_r
         f"Pre-specified sensitivity analyses (N = {n}): "
         f"{n - n_direction} of {n} analyses preserve primary result direction "
         f"({n_retrain} require full pipeline re-run with varied training parameters)",
-        fontsize=9
+        fontsize=9, y=0.97
     )
-    fig.tight_layout(rect=[0, 0, 1, 0.96])
+    # Do not call tight_layout — subplots_adjust above reserves left margin for labels.
+    fig.savefig(outpath)
+    plt.close(fig)
+    print(f"Saved: {outpath}")
+
+
+# ── Appendix Figure 1: Patient Flow Diagram (PRISMA-style) ───────────────────
+def fig_patient_flow(outpath: str) -> None:
+    """PRISMA-style patient flow diagram showing data source, inclusion/exclusion,
+    WPAD pair construction, and training/test split.
+
+    Numbers sourced from the PEARL manuscript (N = 34,971 primary cohort).
+    """
+    fig, ax = plt.subplots(figsize=(8.5, 11))
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 14)
+    ax.set_axis_off()
+    ax.set_title(
+        "Appendix Figure 1. Patient flow diagram\n"
+        "(N = 34,971 rising-risk patients; WPAD = Within-Patient Administrative Discontinuity)",
+        fontsize=9, loc="left"
+    )
+
+    BOX_GRAY  = "#f4f4f4"
+    BOX_BLUE  = "#dbeeff"
+    BOX_GREEN = "#d5f5e3"
+    BOX_RED   = "#fde8e8"
+    EXCL      = "#fff3cd"
+
+    def _rect(xc, yc, w, h, text, fc=BOX_GRAY, ec="#888888", fs=8.0, fw="normal", tc="#222222"):
+        p = mpatches.FancyBboxPatch(
+            (xc - w / 2, yc - h / 2), w, h,
+            boxstyle="round,pad=0.06", facecolor=fc, edgecolor=ec, linewidth=0.9, zorder=2
+        )
+        ax.add_patch(p)
+        ax.text(xc, yc, text, ha="center", va="center",
+                fontsize=fs, fontweight=fw, color=tc,
+                multialignment="center", zorder=3, wrap=True)
+
+    def _arrow(y_top, y_bot, xc=5.0):
+        ax.annotate("", xy=(xc, y_bot), xytext=(xc, y_top),
+                    arrowprops=dict(arrowstyle="->, head_width=0.18, head_length=0.14",
+                                   color="#555555", lw=1.1), zorder=4)
+
+    def _side_excl(xc, yc, text):
+        """Exclusion box off to the right."""
+        p = mpatches.FancyBboxPatch(
+            (xc - 1.8, yc - 0.45), 3.6, 0.9,
+            boxstyle="round,pad=0.05", facecolor=EXCL, edgecolor="#c0a000", linewidth=0.8, zorder=2
+        )
+        ax.add_patch(p)
+        ax.text(xc, yc, text, ha="center", va="center",
+                fontsize=7.5, color="#555500", multialignment="center", zorder=3)
+        # horizontal arrow from main spine to box
+        ax.annotate("", xy=(xc - 1.8, yc), xytext=(5.0, yc),
+                    arrowprops=dict(arrowstyle="->, head_width=0.14, head_length=0.10",
+                                   color="#c0a000", lw=0.8), zorder=4)
+
+    # ── Box 1: Patients assessed ──────────────────────────────────────────────
+    _rect(5, 13.3, 7.5, 0.9,
+          "Patients in predicted-risk rising stratum\n"
+          "(70th–90th percentile, 2023–2025)\nN = 39,317",
+          fc=BOX_GRAY, ec="#666666", fs=8.5, fw="bold")
+    _arrow(12.85, 12.30)
+
+    # Exclusion: incomplete linkage
+    _side_excl(8.0, 12.58,
+               "Excluded: incomplete\nadmin. linkage  N = 4,346")
+
+    # ── Box 2: Analysis cohort ────────────────────────────────────────────────
+    _rect(5, 12.0, 7.5, 0.9,
+          "Included in analysis (complete linkage)\nN = 34,971  (89.0%)\n"
+          "Mean age 36.1 yr; 60.9% female; Charlson index 1.00",
+          fc=BOX_BLUE, ec=BLUE, fs=8.0)
+    _arrow(11.55, 10.80)
+
+    # ── Box 3: 80/20 split ────────────────────────────────────────────────────
+    ax.annotate("", xy=(2.8, 10.55), xytext=(5.0, 10.80),
+                arrowprops=dict(arrowstyle="->, head_width=0.14, head_length=0.12",
+                               color="#555555", lw=1.1), zorder=4)
+    ax.annotate("", xy=(7.2, 10.55), xytext=(5.0, 10.80),
+                arrowprops=dict(arrowstyle="->, head_width=0.14, head_length=0.12",
+                               color="#555555", lw=1.1), zorder=4)
+    # split labels
+    ax.text(5.0, 10.82, "80% / 20% random split", ha="center", va="bottom",
+            fontsize=7.5, color="#555555")
+
+    _rect(2.8, 10.0, 4.0, 0.85,
+          "Training set\nN = 27,976  (80%)\n(model fitting)",
+          fc=BOX_GREEN, ec=GREEN, fs=7.8)
+
+    _rect(7.2, 10.0, 4.0, 0.85,
+          "Test set (DR-OPE evaluation)\nN = 6,995  (20%)\n(held-out; no model fitting)",
+          fc=BOX_RED, ec=RED, fs=7.8)
+
+    # ── Box 4: WPAD identification (from training set) ────────────────────────
+    ax.annotate("", xy=(5.0, 8.75), xytext=(2.8, 9.57),
+                arrowprops=dict(arrowstyle="->, head_width=0.14, head_length=0.12",
+                               color="#555555", lw=1.1), zorder=4)
+    ax.text(3.8, 9.15, "WPAD\nidentification", ha="center", va="center",
+            fontsize=7.5, color="#555555", style="italic")
+
+    _rect(5.0, 8.40, 7.5, 0.95,
+          "WPAD natural experiment: staggered ACO onboarding\n"
+          "1,707 eligible patient-window pairs assessed for WPAD pairing\n"
+          "(ACO staggered onboarding; N = 222 unique patients)",
+          fc=BOX_GRAY, ec="#888888", fs=7.8)
+
+    _arrow(7.92, 7.20)
+
+    # ── Box 5: Pair outcomes ──────────────────────────────────────────────────
+    _rect(5.0, 6.80, 7.5, 0.90,
+          "Primary within-patient preference pairs:\n"
+          "Y_on = 0, Y_off = 1 (care management prevented event)  →  N = 622\n"
+          "Weak-positive pairs: Y_on = 0, Y_off = 0  →  N = 1,085  (weight 0.5)\n"
+          "Discarded: Y_on = 1  →  N = 0  (no poor outcomes during CM)",
+          fc=BOX_BLUE, ec=BLUE, fs=7.5)
+
+    # Side: ITT pairs
+    _side_excl(8.15, 6.10,
+               "Secondary ITT pairs\n(Medicaid eligibility churn)\nN = 221")
+    ax.text(5.0, 6.10, "→ secondary", ha="center", va="center",
+            fontsize=7, color="#555500", style="italic")
+
+    _arrow(6.35, 5.50)
+
+    # ── Box 6: Cross-patient pairs ────────────────────────────────────────────
+    _rect(5.0, 5.10, 7.5, 0.80,
+          "Cross-patient IPTW pairs (supplemental training signal)\n"
+          "Matched on X; AIPW-weighted; clip [0.1, 10]  →  N = 30,021",
+          fc=BOX_GRAY, ec="#888888", fs=7.8)
+
+    _arrow(4.70, 4.05)
+
+    # ── Box 7: PEARL training ─────────────────────────────────────────────────
+    _rect(5.0, 3.70, 7.5, 0.80,
+          "PEARL training: IPTW-weighted DPO with group-stratified fairness loss\n"
+          "622 primary + 30,021 cross-patient pairs; 6 falsification tests (T1–T5 pass)",
+          fc=BOX_BLUE, ec=BLUE, fs=7.8, fw="bold")
+
+    _arrow(3.30, 2.55)
+
+    # ── Box 8: Evaluation ────────────────────────────────────────────────────
+    _rect(5.0, 2.20, 7.5, 0.80,
+          "Evaluation on held-out test set (N = 6,995; no overlap with training data)\n"
+          "Primary: IMI reduction  ·  Secondary: DR-OPE policy value  ·  Tertiary: DM event rate",
+          fc=BOX_GREEN, ec=GREEN, fs=7.8)
+
+    _arrow(1.80, 1.15)
+
+    # ── Box 9: Results ───────────────────────────────────────────────────────
+    _rect(5.0, 0.75, 7.5, 0.75,
+          "IMI: 10.0% → 2.0% (Δ = 7.9 pp; p < 0.001)  ·  "
+          "DR-OPE rank 3/13  ·  ESS = 2,656 (38.0%)",
+          fc="#e8f8e8", ec=GREEN, fs=7.8, fw="bold", tc="#155724")
+
     fig.savefig(outpath)
     plt.close(fig)
     print(f"Saved: {outpath}")
@@ -310,12 +505,12 @@ def fig_pipeline_overview(outpath: str) -> None:
         p = mpatches.FancyBboxPatch(
             (xc - w / 2, yc - h / 2), w, h,
             boxstyle="round,pad=0.04", facecolor=fc, edgecolor=ec,
-            linewidth=lw, transform=ax.transData, zorder=2, clip_on=False,
+            linewidth=lw, transform=ax.transData, zorder=2,
         )
         ax.add_patch(p)
         ax.text(xc, yc, text, ha="center", va="center",
                 fontsize=fs, fontweight=fw, color=tc,
-                multialignment="center", zorder=3, clip_on=False)
+                multialignment="center", zorder=3)
 
     def _arrow(ax, x1, y1, x2, y2, col="#4d4d4d", lw=1.1):
         ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
@@ -464,7 +659,10 @@ def fig_pipeline_overview(outpath: str) -> None:
               "2.0% [1.5\u20132.6%] under PEARL  (\u221282.3% relative reduction)",
               ha="center", fontsize=6.8, color="#333333")
 
-    fig.savefig(outpath, bbox_inches="tight", dpi=300)
+    # Save without bbox_inches="tight" to avoid bounding-box expansion from
+    # FancyBboxPatch elements; explicit figure size (11×4.5) is the target output.
+    with matplotlib.rc_context({"savefig.bbox": None, "savefig.pad_inches": 0.1}):
+        fig.savefig(outpath, dpi=300)
     plt.close(fig)
     print(f"Saved: {outpath}")
 
@@ -485,6 +683,7 @@ def main():
     results_dir = os.path.dirname(args.results)
     sens_csv = os.path.join(results_dir, "sensitivity_results.csv")
     fig_sensitivity(os.path.join(args.outdir, "fig5_sensitivity.pdf"), sens_csv=sens_csv)
+    fig_patient_flow(             os.path.join(args.outdir, "fig_patient_flow.pdf"))
     print("All figures written to", args.outdir)
 
 

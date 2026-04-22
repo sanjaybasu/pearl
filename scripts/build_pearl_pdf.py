@@ -21,13 +21,14 @@ COMBINED   = Path("/tmp/PEARL_combined_v3.md")
 
 # Maps legend-start text → figure path (searched in paragraph text)
 MS_FIGS = {
-    "**Figure 1.**": FIGS_DIR / "fig1_pipeline.png",
-    "**Figure 2.**": FIGS_DIR / "fig2_drope_forest.png",
+    "Figure 1.": FIGS_DIR / "fig1_pipeline.png",
+    "Figure 2.": FIGS_DIR / "fig2_drope_forest.png",
 }
 SUP_FIGS = {
-    "**Appendix Figure 1.**": FIGS_DIR / "fig3_imi_equity.png",
-    "**Appendix Figure 2.**": FIGS_DIR / "fig4_camden.png",
-    "**Appendix Figure 3.**": FIGS_DIR / "fig5_sensitivity.png",
+    "Appendix Figure 1.": FIGS_DIR / "fig_patient_flow.png",
+    "Appendix Figure 2.": FIGS_DIR / "fig3_imi_equity.png",
+    "Appendix Figure 3.": FIGS_DIR / "fig4_camden.png",
+    "Appendix Figure 4.": FIGS_DIR / "fig5_sensitivity.png",
 }
 
 def inject_figures(text: str, fig_map: dict) -> str:

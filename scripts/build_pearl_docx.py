@@ -37,9 +37,10 @@ FILES = [
         "src": PEARL_DIR / "supplement" / "PEARL_supplement_v3.md",
         "out": OUTPUT_DIR / "PEARL_supplement_v3.docx",
         "figures": {
-            "Appendix Figure 1.": FIGS_DIR / "fig3_imi_equity.png",
-            "Appendix Figure 2.": FIGS_DIR / "fig4_camden.png",
-            "Appendix Figure 3.": FIGS_DIR / "fig5_sensitivity.png",
+            "Appendix Figure 1.": FIGS_DIR / "fig_patient_flow.png",
+            "Appendix Figure 2.": FIGS_DIR / "fig3_imi_equity.png",
+            "Appendix Figure 3.": FIGS_DIR / "fig4_camden.png",
+            "Appendix Figure 4.": FIGS_DIR / "fig5_sensitivity.png",
         },
     },
     {
