@@ -24,7 +24,11 @@ from sklearn.metrics import log_loss
 import warnings
 warnings.filterwarnings("ignore")
 
-INTERVENTIONS = ["social_needs", "medication_adherence", "behavioral_health", "clinical_complexity"]
+INTERVENTIONS = [
+    "care_access", "clinical_other", "diabetes", "financial_benefits", "food_security",
+    "heart_failure", "housing", "hypertension", "maternal", "medication_adherence",
+    "mental_health", "pulmonary", "substance_use", "transport_utilities",
+]
 FEATURE_COLS = [
     "age", "female", "charlson_score", "prior_ed_visits_6mo", "prior_hosp_6mo",
     "pharmacy_fills_90d", "missed_pharmacy_fills", "n_chronic",
@@ -258,8 +262,8 @@ class TabularPEARL:
             best_arm_le_idx = np.argmin(p_outcomes, axis=1)  # alphabetical LE index of best arm
             pref_intv = np.array([self._le.classes_[idx] for idx in best_arm_le_idx])
             # Rejected: behavioral arm (current policy) — what we're improving over
-            rej_raw = train_data["behavioral_intervention"].fillna("clinical_complexity").values
-            rej_intv = np.where(np.isin(rej_raw, INTERVENTIONS), rej_raw, "social_needs")
+            rej_raw = train_data["behavioral_intervention"].fillna("care_access").values
+            rej_intv = np.where(np.isin(rej_raw, INTERVENTIONS), rej_raw, "care_access")
             # When preferred == behavioral (patient is correctly matched), use second-best
             same_mask = pref_intv == rej_intv
             if same_mask.any():
@@ -277,32 +281,32 @@ class TabularPEARL:
             optimal_better = train_data["y_optimal"].fillna(0).values < train_data["y_behavioral"].fillna(1).values
             pref_intv = np.where(
                 optimal_better,
-                train_data["optimal_intervention"].fillna("clinical_complexity").values,
-                train_data["behavioral_intervention"].fillna("clinical_complexity").values
+                train_data["optimal_intervention"].fillna("care_access").values,
+                train_data["behavioral_intervention"].fillna("care_access").values
             )
             rej_intv = np.where(
                 optimal_better,
-                train_data["behavioral_intervention"].fillna("clinical_complexity").values,
-                train_data["optimal_intervention"].fillna("clinical_complexity").values
+                train_data["behavioral_intervention"].fillna("care_access").values,
+                train_data["optimal_intervention"].fillna("care_access").values
             )
             # Clip to valid INTERVENTIONS (behavioral_intervention should always be valid)
-            pref_intv = np.where(np.isin(pref_intv, INTERVENTIONS), pref_intv, "clinical_complexity")
-            rej_intv = np.where(np.isin(rej_intv, INTERVENTIONS), rej_intv, "social_needs")
+            pref_intv = np.where(np.isin(pref_intv, INTERVENTIONS), pref_intv, "care_access")
+            rej_intv = np.where(np.isin(rej_intv, INTERVENTIONS), rej_intv, "care_access")
         elif pref_col in train_data.columns:
-            pref_intv = train_data[pref_col].fillna("clinical_complexity").values
+            pref_intv = train_data[pref_col].fillna("care_access").values
             if rej_col and rej_col in train_data.columns:
-                rej_raw = train_data[rej_col].fillna("clinical_complexity").values
-                rej_intv = np.where(np.isin(rej_raw, INTERVENTIONS), rej_raw, "social_needs")
+                rej_raw = train_data[rej_col].fillna("care_access").values
+                rej_intv = np.where(np.isin(rej_raw, INTERVENTIONS), rej_raw, "care_access")
             else:
                 rej_intv = np.array([
                     INTERVENTIONS[(INTERVENTIONS.index(pref_intv[i]) + 1) % len(INTERVENTIONS)]
-                    if pref_intv[i] in INTERVENTIONS else "social_needs"
+                    if pref_intv[i] in INTERVENTIONS else "care_access"
                     for i in range(n)
                 ])
         else:
-            pref_intv = train_data.get("behavioral_intervention", pd.Series(["clinical_complexity"] * n)).values
+            pref_intv = train_data.get("behavioral_intervention", pd.Series(["care_access"] * n)).values
             rej_intv = np.array([INTERVENTIONS[(INTERVENTIONS.index(p) + 1) % len(INTERVENTIONS)]
-                                  if p in INTERVENTIONS else "social_needs"
+                                  if p in INTERVENTIONS else "care_access"
                                   for p in pref_intv])
 
         A_preferred = self._le.transform(pref_intv)
@@ -331,8 +335,18 @@ class TabularPEARL:
         # max_iter=20: few steps per iteration so warm_start actually matters
         self._policy = LogisticRegression(C=1.0, max_iter=20, multi_class="multinomial",
                                           warm_start=True, random_state=self.seed)
-        # Initial fit on preferred completions to set starting point
-        self._policy.fit(X, A_preferred)
+        # Initial fit on preferred completions to set starting point.
+        # Ensure all 14 classes are always present: add one tiny synthetic sample per
+        # missing class (weight=0.01) so LogisticRegression.classes_ = [0..13].
+        all_class_indices = np.arange(len(INTERVENTIONS))
+        missing_classes = np.setdiff1d(all_class_indices, np.unique(A_preferred))
+        if len(missing_classes) > 0:
+            X_init = np.vstack([X, np.zeros((len(missing_classes), X.shape[1]))])
+            A_init = np.concatenate([A_preferred, missing_classes])
+            w_init = np.concatenate([np.ones(len(X)), np.full(len(missing_classes), 0.01)])
+        else:
+            X_init, A_init, w_init = X, A_preferred, np.ones(len(X))
+        self._policy.fit(X_init, A_init, sample_weight=w_init)
 
         training_log = []
         best_loss = float("inf")
@@ -666,19 +680,15 @@ class LLMPEARLTrainer:
             patient_row = patient.iloc[0]
 
             prompt = format_patient_context(patient_row)
-            chosen_intv = pair.get("preferred_intervention", "clinical_complexity")
+            chosen_intv = pair.get("preferred_intervention", "care_access")
             rejected_intv = pair.get("rejected_intervention", "no_cm_baseline")
 
             chosen = format_care_plan(
-                chosen_intv if chosen_intv in ["social_needs", "medication_adherence",
-                                                "behavioral_health", "clinical_complexity"]
-                else "clinical_complexity",
+                chosen_intv if chosen_intv in INTERVENTIONS else "care_access",
                 patient_row
             )
             rejected = format_care_plan(
-                rejected_intv if rejected_intv in ["social_needs", "medication_adherence",
-                                                    "behavioral_health", "clinical_complexity",
-                                                    "no_cm_baseline"]
+                rejected_intv if (rejected_intv in INTERVENTIONS or rejected_intv == "no_cm_baseline")
                 else "no_cm_baseline",
                 patient_row
             )

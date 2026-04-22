@@ -414,12 +414,12 @@ class EinsteinArena:
 
             # IMI evaluation
             pearl_recs, dpo_margins, abstain_mask = pearl.predict_intervention(patients)
-            le = LabelEncoder().fit(["social_needs", "medication_adherence",
-                                     "behavioral_health", "clinical_complexity"])
+            from models.pearl_dpo import INTERVENTIONS as _PEARL_INTERVENTIONS
+            le = LabelEncoder().fit(_PEARL_INTERVENTIONS)
             A_enc = le.transform(pearl_recs)
             imi_pearl = float(np.array([
                 float(any(mu_hat_dr[i, j] < mu_hat_dr[i, A_enc[i]] - 0.02
-                          for j in range(4) if j != A_enc[i]))
+                          for j in range(len(_PEARL_INTERVENTIONS)) if j != A_enc[i]))
                 for i in range(len(patients))
             ]).mean())
             result.imi_reduction = imi_result["imi_point"] - imi_pearl

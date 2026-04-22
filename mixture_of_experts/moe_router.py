@@ -1,11 +1,21 @@
 """
 PEARL Mixture of Experts (MoE) Router
 
-Four specialized LoRA adapters, each expert in one care domain:
-  Expert 1 — social_needs:          Food, housing, transport, language navigation
-  Expert 2 — medication_adherence:  Pharmacy reconciliation, pill management
-  Expert 3 — behavioral_health:     MH/SUD referral, stigma-aware coordination
-  Expert 4 — clinical_complexity:   Multi-morbidity, specialist coordination
+Fourteen specialized LoRA adapters, one per specific next-best-action category:
+  Expert 1  — care_access:         PCP appointments, care coordination
+  Expert 2  — clinical_other:      Dental, eye care, wellness (catch-all)
+  Expert 3  — diabetes:            Glycemic control, diabetes management
+  Expert 4  — financial_benefits:  Financial assistance, insurance enrollment
+  Expert 5  — food_security:       Food insecurity, nutrition counseling
+  Expert 6  — heart_failure:       Heart failure management
+  Expert 7  — housing:             Housing instability, safety
+  Expert 8  — hypertension:        Blood pressure control
+  Expert 9  — maternal:            Maternity, prenatal, postpartum care
+  Expert 10 — medication_adherence: Pharmacy reconciliation, adherence support
+  Expert 11 — mental_health:       Depression, anxiety, MH/BH referral
+  Expert 12 — pulmonary:           Asthma/COPD management
+  Expert 13 — substance_use:       SUD, alcohol, smoking cessation
+  Expert 14 — transport_utilities: Transportation, utilities, childcare
 
 Router: soft attention over patient features → weighted combination of expert outputs.
 Top-K routing (K=2): activate 2 experts per patient, mix outputs.
@@ -28,7 +38,11 @@ from sklearn.neural_network import MLPClassifier
 import warnings
 warnings.filterwarnings("ignore")
 
-INTERVENTIONS = ["social_needs", "medication_adherence", "behavioral_health", "clinical_complexity"]
+INTERVENTIONS = [
+    "care_access", "clinical_other", "diabetes", "financial_benefits", "food_security",
+    "heart_failure", "housing", "hypertension", "maternal", "medication_adherence",
+    "mental_health", "pulmonary", "substance_use", "transport_utilities",
+]
 
 FEATURE_COLS = [
     "age", "female", "charlson_score", "prior_ed_visits_6mo", "prior_hosp_6mo",
@@ -39,26 +53,52 @@ FEATURE_COLS = [
 
 # Expert specialization: which features each expert focuses on
 EXPERT_FEATURES = {
-    "social_needs": [
-        "adi_percentile", "food_insecure", "housing_unstable", "no_transport",
-        "lives_alone", "age", "female",
-        # Language proxy: derived during feature engineering
+    "care_access": [
+        "charlson_score", "n_chronic", "prior_ed_visits_6mo", "prior_hosp_6mo", "age",
+    ],
+    "clinical_other": [
+        "age", "female", "charlson_score", "n_chronic",
+    ],
+    "diabetes": [
+        "has_diabetes", "charlson_score", "pharmacy_fills_90d", "missed_pharmacy_fills",
+        "n_chronic", "age",
+    ],
+    "financial_benefits": [
+        "adi_percentile", "food_insecure", "housing_unstable", "age", "female",
+    ],
+    "food_security": [
+        "adi_percentile", "food_insecure", "age", "female", "lives_alone",
+    ],
+    "heart_failure": [
+        "has_chf", "prior_hosp_6mo", "prior_ed_visits_6mo", "charlson_score", "age",
+    ],
+    "housing": [
+        "housing_unstable", "adi_percentile", "age", "female", "lives_alone",
+    ],
+    "hypertension": [
+        "has_hypertension", "charlson_score", "pharmacy_fills_90d", "age", "n_chronic",
+    ],
+    "maternal": [
+        "female", "age", "charlson_score",
     ],
     "medication_adherence": [
         "pharmacy_fills_90d", "missed_pharmacy_fills", "n_chronic",
         "has_diabetes", "has_chf", "has_copd", "has_hypertension", "has_ckd",
-        "charlson_score", "age"
+        "charlson_score", "age",
     ],
-    "behavioral_health": [
-        "has_mh", "age", "female", "adi_percentile",
-        "prior_ed_visits_6mo",  # ED often driven by MH crises
-        "lives_alone",
-        "food_insecure"  # SDOH often co-occurs with MH need
+    "mental_health": [
+        "has_mh", "age", "female", "adi_percentile", "prior_ed_visits_6mo",
+        "lives_alone", "food_insecure",
     ],
-    "clinical_complexity": [
-        "charlson_score", "n_chronic", "prior_hosp_6mo", "prior_ed_visits_6mo",
-        "has_chf", "has_copd", "has_ckd", "has_diabetes", "age"
-    ]
+    "pulmonary": [
+        "has_copd", "prior_ed_visits_6mo", "charlson_score", "pharmacy_fills_90d", "age",
+    ],
+    "substance_use": [
+        "has_mh", "age", "adi_percentile", "prior_ed_visits_6mo", "female",
+    ],
+    "transport_utilities": [
+        "no_transport", "adi_percentile", "age", "female", "lives_alone",
+    ],
 }
 
 
@@ -115,7 +155,7 @@ class ExpertAdapter:
         # Target: intervention type (in single-intervention tabular version, target is binary)
         # In real LLM version: target is the preferred care plan completion
         y = np.where(
-            domain_patients.get(target_col, pd.Series(["clinical_complexity"] * len(domain_patients))).values == self.name,
+            domain_patients.get(target_col, pd.Series(["care_access"] * len(domain_patients))).values == self.name,
             1, 0
         )
 
@@ -157,7 +197,7 @@ class MoERouter:
     Mixture of Experts router for PEARL.
 
     Architecture:
-    - Router: MLP that computes attention weights over 4 experts
+    - Router: MLP that computes attention weights over 14 experts
     - Top-K routing: activate top 2 experts per patient
     - Load balancing: entropy regularization (Switch Transformer style)
     - Final prediction: weighted combination of expert recommendations
@@ -169,7 +209,7 @@ class MoERouter:
 
     def __init__(
         self,
-        n_experts: int = 4,
+        n_experts: int = 14,
         top_k: int = 2,
         load_balancing_coef: float = 0.01,
         hidden_dim: int = 64,
@@ -204,19 +244,29 @@ class MoERouter:
         Router assigns each patient to experts via softmax attention.
         """
         X = self._get_X(patients)
+        n = len(patients)
 
         try:
             # Router MLP → softmax over experts
-            router_logits = self._router.predict_proba(X)  # (n, n_experts)
-            if router_logits.shape[1] != self.n_experts:
-                # Fallback: use individual expert confidences
-                router_weights = self._individual_expert_confidences(patients)
-            else:
+            router_logits = self._router.predict_proba(X)  # (n, k) where k ≤ n_experts
+            if router_logits.shape[1] == self.n_experts:
                 router_weights = router_logits
+            else:
+                # Router was trained with k < n_experts unique classes.
+                # Map each output column back to its correct expert index using
+                # _router.classes_ (integer indices into INTERVENTIONS).
+                full_weights = np.zeros((n, self.n_experts))
+                for col_idx, class_idx in enumerate(self._router.classes_):
+                    if 0 <= class_idx < self.n_experts:
+                        full_weights[:, class_idx] = router_logits[:, col_idx]
+                router_weights = full_weights
         except Exception:
-            router_weights = self._individual_expert_confidences(patients)
+            # Final safe fallback: uniform weights
+            router_weights = np.full((n, self.n_experts), 1.0 / self.n_experts)
 
-        return router_weights
+        # Softmax normalization
+        exp_w = np.exp(router_weights - router_weights.max(axis=1, keepdims=True))
+        return exp_w / exp_w.sum(axis=1, keepdims=True)
 
     def _individual_expert_confidences(self, patients: pd.DataFrame) -> np.ndarray:
         """
@@ -280,13 +330,13 @@ class MoERouter:
             print(f"  Expert '{name}' fitted")
 
         # Fit router: given patient features → predict which expert is optimal.
-        # Use INTERVENTIONS-order indices (0=social_needs,...,3=clinical_complexity) so
+        # Use INTERVENTIONS-order indices (0=care_access,...,13=transport_utilities) so
         # that predict_proba columns align with INTERVENTIONS list for decoding.
         X = self._get_X(patients)
         _intv_to_idx = {intv: i for i, intv in enumerate(INTERVENTIONS)}
         if target_col in patients.columns:
             y = np.array([_intv_to_idx.get(str(v), 0)
-                          for v in patients[target_col].fillna("clinical_complexity").values])
+                          for v in patients[target_col].fillna("care_access").values])
         else:
             # Use expert confidences to create soft router targets
             expert_conf = self._individual_expert_confidences(patients)
@@ -504,7 +554,7 @@ if __name__ == "__main__":
     print("MIXTURE OF EXPERTS ROUTER")
     print("="*60)
 
-    moe = MoERouter(n_experts=4, top_k=2, seed=42)
+    moe = MoERouter(n_experts=14, top_k=2, seed=42)
     moe.fit(rising, pop.wpad_pairs)
 
     eval_result = moe.evaluate_imi(rising, mu_hat_dr)

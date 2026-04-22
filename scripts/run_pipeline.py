@@ -28,6 +28,14 @@ import argparse
 import warnings
 warnings.filterwarnings("ignore")
 
+# Intervention taxonomy (14 specific next-best-action categories; must match extract_wpad.py)
+_INTERVENTIONS = [
+    "care_access", "clinical_other", "diabetes", "financial_benefits", "food_security",
+    "heart_failure", "housing", "hypertension", "maternal", "medication_adherence",
+    "mental_health", "pulmonary", "substance_use", "transport_utilities",
+]
+_INTERVENTIONS_SORTED = sorted(_INTERVENTIONS)  # alphabetical = LabelEncoder order
+
 
 def run_phase_0(pop, rising_train, rising_test, wpad_pairs_train, verbose=True):
     """
@@ -126,17 +134,16 @@ def run_phase_1(pop, rising_train, wpad_pairs_train, phase0, verbose=True):
     mu_hat_train = phase0["mu_hat_train"]    # S-learner predictions for rising_train patients
 
     # Derive WPAD-preferred intervention for each TRAINING patient from S-learner.
-    # mu_hat_train shape: (n_train, 4) in LabelEncoder alphabetical order:
-    #   col 0='behavioral_health', 1='clinical_complexity', 2='medication_adherence', 3='social_needs'
+    # mu_hat_train shape: (n_train, 14) in LabelEncoder alphabetical order:
+    #   col 0='care_access', 1='clinical_other', ..., 13='transport_utilities'
     # argmin = intervention with lowest estimated acute-care event probability = best match.
-    _le_alpha = _LE2().fit(["social_needs", "medication_adherence",
-                             "behavioral_health", "clinical_complexity"])
+    _le_alpha = _LE2().fit(_INTERVENTIONS_SORTED)
     preferred_alpha_idx = np.argmin(mu_hat_train, axis=1)  # indices in alphabetical order
     rising_train = rising_train.copy()
     rising_train["wpad_preferred_intervention"] = _le_alpha.inverse_transform(preferred_alpha_idx)
 
     # Propagate wpad_preferred to pop.patients for MoEPEARL (which uses pop.patients internally)
-    pop.patients["wpad_preferred_intervention"] = "behavioral_health"  # default
+    pop.patients["wpad_preferred_intervention"] = "care_access"  # default
     pop.patients.loc[
         pop.patients["patient_id"].isin(rising_train["patient_id"]), "wpad_preferred_intervention"
     ] = rising_train.set_index("patient_id")["wpad_preferred_intervention"]
@@ -162,7 +169,7 @@ def run_phase_1(pop, rising_train, wpad_pairs_train, phase0, verbose=True):
 
     # MoE Router: trained on rising_train patients with wpad_preferred_intervention
     print("\nTraining MoE Router...")
-    moe = MoERouter(n_experts=4, top_k=2, seed=42)
+    moe = MoERouter(n_experts=14, top_k=2, seed=42)
     moe.fit(rising_train, wpad_pairs_train, target_col="wpad_preferred_intervention")
 
     # MoE-PEARL: base PEARL component + standalone MoE router.
@@ -238,10 +245,8 @@ def run_phase_2(pop, rising_train, rising_test, phase0, phase1_results, verbose=
         return recs
 
     # Attach mu_hat columns to rising_test so oracle_policy can use them for real data.
-    # mu_hat_test is (n, 4) in LabelEncoder alphabetical order:
-    #   col 0 = behavioral_health, col 1 = clinical_complexity,
-    #   col 2 = medication_adherence, col 3 = social_needs
-    _INTV_ALPHA = ["behavioral_health", "clinical_complexity", "medication_adherence", "social_needs"]
+    # mu_hat_test is (n, 14) in LabelEncoder alphabetical order.
+    _INTV_ALPHA = _INTERVENTIONS_SORTED  # alphabetical = LabelEncoder column order
     rising = rising.copy()  # avoid SettingWithCopyWarning on rising_test slice
     for _i, _intv in enumerate(_INTV_ALPHA):
         rising[f"_mu_hat_{_intv}"] = mu_hat_test[:, _i]
@@ -258,10 +263,9 @@ def run_phase_2(pop, rising_train, rising_test, phase0, phase1_results, verbose=
         if "optimal_intervention" in pts.columns:
             return pts["optimal_intervention"].values
         # Last resort: argmin p_outcome columns (synthetic mode)
-        p_cols = [f"p_outcome_{intv}" for intv in ["social_needs", "medication_adherence",
-                                                     "behavioral_health", "clinical_complexity"]]
+        p_cols = [f"p_outcome_{intv}" for intv in _INTERVENTIONS]
         if all(c in pts.columns for c in p_cols):
-            INTV_ORDER = ["social_needs", "medication_adherence", "behavioral_health", "clinical_complexity"]
+            INTV_ORDER = _INTERVENTIONS
             p_matrix = np.column_stack([pts[c].values for c in p_cols])
             best_idx = np.argmin(p_matrix, axis=1)
             return np.array([INTV_ORDER[i] for i in best_idx])
@@ -336,9 +340,9 @@ def run_phase_2(pop, rising_train, rising_test, phase0, phase1_results, verbose=
     # DR-OPE for behavioral has high IPW variance (CI width ~0.18); DM is stable.
     # DM = (1/n) Σ_i μ̂(x_i, π(x_i)) — no IPW correction.
     from sklearn.preprocessing import LabelEncoder as _LE
-    _le_tmp = _LE().fit(["social_needs", "medication_adherence", "behavioral_health", "clinical_complexity"])
+    _le_tmp = _LE().fit(_INTERVENTIONS_SORTED)
     drope_eval_X = drope_eval._get_X(rising)
-    drope_mu = drope_eval._predict_outcomes(drope_eval_X)  # (n, 4) in LE alphabetical order
+    drope_mu = drope_eval._predict_outcomes(drope_eval_X)  # (n, 14) in LE alphabetical order
     dm_values = {}
     for name, policy_fn in policies.items():
         recs = policy_fn(rising)
@@ -359,8 +363,7 @@ def run_phase_2(pop, rising_train, rising_test, phase0, phase1_results, verbose=
 
     # IMI comparison table — evaluated on held-out rising_test using out-of-sample mu_hat_test.
     from sklearn.preprocessing import LabelEncoder as _LE_imi
-    _le_imi = _LE_imi().fit(["social_needs", "medication_adherence",
-                              "behavioral_health", "clinical_complexity"])
+    _le_imi = _LE_imi().fit(_INTERVENTIONS_SORTED)
     imi_results = {}
     for name, policy_fn in policies.items():
         recs = policy_fn(rising)
@@ -369,7 +372,7 @@ def run_phase_2(pop, rising_train, rising_test, phase0, phase1_results, verbose=
         # IMI=1 if ∃a: μ̂(x,a) < μ̂(x,π(x)) - ε  (lower event prob = better intervention)
         imi = float(np.array([
             float(any(mu_hat_test[i, j] < mu_hat_test[i, A_enc[i]] - 0.02
-                      for j in range(4) if j != A_enc[i]))
+                      for j in range(len(_INTERVENTIONS_SORTED)) if j != A_enc[i]))
             for i in range(len(rising))
         ]).mean())
         imi_results[name] = imi
@@ -415,12 +418,12 @@ def run_phase_2(pop, rising_train, rising_test, phase0, phase1_results, verbose=
 
             imi_b = float(np.mean([
                 float(any(mu_b[i, j] < mu_b[i, enc_behav[i]] - 0.02
-                          for j in range(4) if j != enc_behav[i]))
+                          for j in range(len(_INTERVENTIONS_SORTED)) if j != enc_behav[i]))
                 for i in range(len(boot_idx))
             ]))
             imi_p = float(np.mean([
                 float(any(mu_b[i, j] < mu_b[i, enc_pearl[i]] - 0.02
-                          for j in range(4) if j != enc_pearl[i]))
+                          for j in range(len(_INTERVENTIONS_SORTED)) if j != enc_pearl[i]))
                 for i in range(len(boot_idx))
             ]))
             boot_imi_behav.append(imi_b)

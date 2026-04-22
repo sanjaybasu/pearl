@@ -76,13 +76,23 @@ class TrainingConfig:
 
 @dataclass
 class MoEConfig:
-    """Mixture of Experts: 4 specialized LoRA adapters + learned router."""
-    n_experts: int = 4
+    """Mixture of Experts: 14 specialized LoRA adapters + learned router."""
+    n_experts: int = 14
     expert_names: List[str] = field(default_factory=lambda: [
-        "social_needs",          # food, housing, transport, language
-        "medication_adherence",  # pharmacy fills, pill reconciliation
-        "behavioral_health",     # MH referral, SUD, coping
-        "clinical_complexity",   # multi-morbidity, specialist coordination
+        "care_access",          # PCP appointments, care coordination
+        "clinical_other",       # Dental, eye care, wellness (catch-all)
+        "diabetes",             # Diabetes management
+        "financial_benefits",   # Financial, insurance, legal, employment
+        "food_security",        # Food insecurity, nutrition
+        "heart_failure",        # Heart failure management
+        "housing",              # Housing instability, quality
+        "hypertension",         # Hypertension management
+        "maternal",             # Maternity, prenatal, postpartum
+        "medication_adherence", # Medication adherence/optimization
+        "mental_health",        # Depression, anxiety, MH/BH
+        "pulmonary",            # Asthma/COPD
+        "substance_use",        # SUD, alcohol, smoking cessation
+        "transport_utilities",  # Transportation, utilities, childcare
     ])
     router_hidden_dim: int = 256
     router_top_k: int = 2  # activate top-2 experts per patient

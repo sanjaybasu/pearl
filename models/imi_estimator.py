@@ -26,7 +26,11 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-INTERVENTIONS = ["social_needs", "medication_adherence", "behavioral_health", "clinical_complexity"]
+INTERVENTIONS = [
+    "care_access", "clinical_other", "diabetes", "financial_benefits", "food_security",
+    "heart_failure", "housing", "hypertension", "maternal", "medication_adherence",
+    "mental_health", "pulmonary", "substance_use", "transport_utilities",
+]
 DEMOGRAPHIC_COVS = ["age", "female", "race_eth", "primary_language", "adi_percentile", "adi_quintile"]
 CLINICAL_COVS = ["charlson_score", "prior_ed_visits_6mo", "prior_hosp_6mo", "n_chronic",
                  "pharmacy_fills_90d", "missed_pharmacy_fills", "has_diabetes", "has_chf",
@@ -111,7 +115,7 @@ class IMIEstimator:
         # Naive T-learners trained on arm-specific subsets are confounded:
         # E[Y|X, A=a] ≠ E[Y(a)|X] when assignment is non-random.
         # E.g. medication_adherence patients have systematically different
-        # risk profiles than social_needs patients, so T-learner predictions
+        # risk profiles than care_access patients, so T-learner predictions
         # for counterfactual arms reflect selection effects, not treatment effects.
         #
         # Fix: single S-learner trained on the FULL dataset with IPW sample weights
@@ -320,7 +324,7 @@ class IMIEstimator:
         prop_proba = self._propensity_model.predict_proba(X)
         # Coverage: fraction of patients where their OBSERVED intervention has
         # propensity > 1% (the relevant positivity condition for AIPW estimation).
-        # Note: rare-intervention arms (e.g. behavioral_health at 1.8% prevalence)
+        # Note: rare-intervention arms (e.g. maternal, substance_use at low prevalence)
         # will have low propensity for most patients — this is expected, not a violation.
         # We use 1% threshold and report per-arm coverage separately.
         obs_propensity = prop_proba[np.arange(len(patients)), A_encoded]
@@ -591,7 +595,8 @@ class CamdenReanalysis:
     """
 
     # Camden protocol = intensive multidisciplinary team for ALL patients
-    CAMDEN_INTERVENTION = "clinical_complexity"
+    # Mapped to care_access (care coordination) in the 14-category taxonomy
+    CAMDEN_INTERVENTION = "care_access"
 
     def run(
         self,

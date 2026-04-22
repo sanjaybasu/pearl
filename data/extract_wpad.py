@@ -13,10 +13,20 @@ Primary outcome: 90-day composite acute care event
   (unplanned hospitalization OR avoidable ED visit; Fine-Gray competing risks, death competing)
 
 Intervention type labels from member_goals (4 PEARL categories):
-  social_needs       ← FOOD_INSECURITY, HOUSING_INSECURITY, TRANSPORTATION, FINANCIAL, ...
+  care_access         ← CARE, PCP_APPOINTMENT
+  clinical_other      ← EYE_CARE, DENTAL, ACTIVITY, EDUCATION, TECHNOLOGY, OTHER, VIOLENCE
+  diabetes            ← DIABETES, WEIGHT_MANAGEMENT
+  financial_benefits  ← FINANCIAL, INSURANCE_COVERAGE, LEGAL, EMPLOYMENT
+  food_security       ← FOOD_INSECURITY, FOOD_DIET_NUTRITION
+  heart_failure       ← HEART_FAILURE
+  housing             ← HOUSING_INSECURITY, HOUSING_QUALITY_SAFETY
+  hypertension        ← HYPERTENSION
+  maternal            ← MATERNITY, PRENATAL_CARE, POSTPARTUM_CARE
   medication_adherence ← MEDICATION_ADHERENCE, MEDICATION_OPTIMIZATION
-  behavioral_health  ← MENTAL_HEALTH, OTHER_MENTAL_BEHAVIORAL, DEPRESSION, ANXIETY, ...
-  clinical_complexity ← CARE, HYPERTENSION, PCP_APPOINTMENT, DIABETES, HEART_FAILURE, ...
+  mental_health       ← MENTAL_HEALTH, DEPRESSION, ANXIETY, CARE_FOR_MH_BH, OTHER_MENTAL_BEHAVIORAL
+  pulmonary           ← ASTHMA_COPD
+  substance_use       ← SUBSTANCE_USE, ALCOHOL_USE, SMOKING_CESSATION
+  transport_utilities ← TRANSPORTATION, UTILITIES, CHILDCARE, SOCIAL_CONNECTION
 
 Usage:
   from data.extract_wpad import build_waymark_population
@@ -34,56 +44,97 @@ warnings.filterwarnings("ignore")
 # ── Data paths ────────────────────────────────────────────────────────────────
 DATA_DIR = "/Users/sanjaybasu/waymark-local/data/real_inputs"
 
-# ── PEARL intervention taxonomy ───────────────────────────────────────────────
-INTERVENTIONS = ["social_needs", "medication_adherence", "behavioral_health", "clinical_complexity"]
+# ── PEARL intervention taxonomy (14 specific next best action categories) ──────
+INTERVENTIONS = [
+    "care_access",        # PCP appointments, care coordination, complex care management
+    "clinical_other",     # Dental, eye care, activity, wellness (catch-all)
+    "diabetes",           # Diabetes management, glycemic control
+    "financial_benefits", # Financial assistance, insurance enrollment, legal, employment
+    "food_security",      # Food insecurity, nutrition counseling
+    "heart_failure",      # Heart failure management
+    "housing",            # Housing instability, housing quality/safety
+    "hypertension",       # Hypertension management, blood pressure control
+    "maternal",           # Maternity, prenatal, postpartum care
+    "medication_adherence", # Medication adherence and optimization (cross-cutting)
+    "mental_health",      # Depression, anxiety, MH/BH coordination
+    "pulmonary",          # Asthma, COPD management
+    "substance_use",      # Substance use disorders, alcohol, smoking cessation
+    "transport_utilities", # Transportation, utilities, childcare, social connection
+]
 
 # Member goal category → PEARL intervention type mapping
 GOAL_MAP = {
-    # social_needs
-    "FOOD_INSECURITY": "social_needs",
-    "HOUSING_INSECURITY": "social_needs",
-    "TRANSPORTATION": "social_needs",
-    "FINANCIAL": "social_needs",
-    "INSURANCE_COVERAGE": "social_needs",
-    "CHILDCARE": "social_needs",
-    "EMPLOYMENT": "social_needs",
-    "UTILITIES": "social_needs",
-    "HOUSING_QUALITY_SAFETY": "social_needs",
-    "LEGAL": "social_needs",
-    "SOCIAL_CONNECTION": "social_needs",
-    "FOOD_DIET_NUTRITION": "social_needs",
+    # care_access
+    "CARE": "care_access",
+    "PCP_APPOINTMENT": "care_access",
+    # clinical_other (catch-all for wellness/preventive)
+    "EYE_CARE": "clinical_other",
+    "DENTAL": "clinical_other",
+    "ACTIVITY": "clinical_other",
+    "EDUCATION": "clinical_other",
+    "TECHNOLOGY": "clinical_other",
+    "OTHER": "clinical_other",
+    "VIOLENCE": "clinical_other",
+    # diabetes
+    "DIABETES": "diabetes",
+    "WEIGHT_MANAGEMENT": "diabetes",
+    # financial_benefits
+    "FINANCIAL": "financial_benefits",
+    "INSURANCE_COVERAGE": "financial_benefits",
+    "LEGAL": "financial_benefits",
+    "EMPLOYMENT": "financial_benefits",
+    # food_security
+    "FOOD_INSECURITY": "food_security",
+    "FOOD_DIET_NUTRITION": "food_security",
+    # heart_failure
+    "HEART_FAILURE": "heart_failure",
+    # housing
+    "HOUSING_INSECURITY": "housing",
+    "HOUSING_QUALITY_SAFETY": "housing",
+    # hypertension
+    "HYPERTENSION": "hypertension",
+    # maternal
+    "MATERNITY": "maternal",
+    "PRENATAL_CARE": "maternal",
+    "POSTPARTUM_CARE": "maternal",
     # medication_adherence
     "MEDICATION_ADHERENCE": "medication_adherence",
     "MEDICATION_OPTIMIZATION": "medication_adherence",
-    # behavioral_health
-    "MENTAL_HEALTH": "behavioral_health",
-    "OTHER_MENTAL_BEHAVIORAL": "behavioral_health",
-    "CARE_FOR_MH_BH": "behavioral_health",
-    "DEPRESSION": "behavioral_health",
-    "ANXIETY": "behavioral_health",
-    "SUBSTANCE_USE": "behavioral_health",
-    "ALCOHOL_USE": "behavioral_health",
-    "SMOKING_CESSATION": "behavioral_health",
-    # clinical_complexity
-    "CARE": "clinical_complexity",
-    "HYPERTENSION": "clinical_complexity",
-    "PCP_APPOINTMENT": "clinical_complexity",
-    "EYE_CARE": "clinical_complexity",
-    "DENTAL": "clinical_complexity",
-    "DIABETES": "clinical_complexity",
-    "HEART_FAILURE": "clinical_complexity",
-    "ASTHMA_COPD": "clinical_complexity",
-    "POSTPARTUM_CARE": "clinical_complexity",
-    "PRENATAL_CARE": "clinical_complexity",
-    "MATERNITY": "clinical_complexity",
-    "ACTIVITY": "clinical_complexity",
-    "WEIGHT_MANAGEMENT": "clinical_complexity",
-    "EDUCATION": "clinical_complexity",
-    "TECHNOLOGY": "clinical_complexity",
-    "OTHER": "clinical_complexity",
+    # mental_health
+    "MENTAL_HEALTH": "mental_health",
+    "DEPRESSION": "mental_health",
+    "ANXIETY": "mental_health",
+    "CARE_FOR_MH_BH": "mental_health",
+    "OTHER_MENTAL_BEHAVIORAL": "mental_health",
+    # pulmonary
+    "ASTHMA_COPD": "pulmonary",
+    # substance_use
+    "SUBSTANCE_USE": "substance_use",
+    "ALCOHOL_USE": "substance_use",
+    "SMOKING_CESSATION": "substance_use",
+    # transport_utilities
+    "TRANSPORTATION": "transport_utilities",
+    "UTILITIES": "transport_utilities",
+    "CHILDCARE": "transport_utilities",
+    "SOCIAL_CONNECTION": "transport_utilities",
 }
-# Intervention priority for tie-breaking (per clinical rationale)
-INTV_PRIORITY = {"medication_adherence": 0, "social_needs": 1, "behavioral_health": 2, "clinical_complexity": 3}
+# Intervention priority for tie-breaking (clinical urgency order)
+INTV_PRIORITY = {
+    "medication_adherence": 0,
+    "heart_failure": 1,
+    "hypertension": 2,
+    "diabetes": 3,
+    "pulmonary": 4,
+    "mental_health": 5,
+    "substance_use": 6,
+    "maternal": 7,
+    "care_access": 8,
+    "food_security": 9,
+    "housing": 10,
+    "financial_benefits": 11,
+    "transport_utilities": 12,
+    "clinical_other": 13,
+}
 
 
 @dataclass
@@ -500,13 +551,13 @@ def _label_intervention(
     on_start: pd.Series,
     on_end: pd.Series,
     member_goals: pd.DataFrame,
-    default: str = "clinical_complexity",
+    default: str = "care_access",
 ) -> pd.Series:
     """
     For each patient, find the dominant PEARL intervention type from goals
     created during the ON-window [on_start, on_end].
 
-    Priority: medication_adherence > social_needs > behavioral_health > clinical_complexity
+    Priority order defined by INTV_PRIORITY (medication_adherence highest, clinical_other lowest).
     """
     mg = member_goals.copy()
     mg["goal_created_at"] = pd.to_datetime(mg["goal_created_at"], utc=True)
@@ -970,18 +1021,29 @@ def _build_patient_cohort(d: dict, bridge: pd.DataFrame, wpad_pids: set) -> pd.D
         goal_intv = all_goals_by_member.get(row["member_id"])
         if goal_intv is not None:
             return goal_intv
-        # 2. Risk-score proxy (simulate behavioral policy routing)
-        sdoh = row.get("sdoh_count", 0) or 0
-        mh = row.get("has_mh", 0) or 0
-        charlson = row.get("charlson_score", 0) or 0
-        if sdoh > 0:
-            return "social_needs"
-        elif mh > 0:
-            return "behavioral_health"
-        elif charlson > 2:
-            return "clinical_complexity"
-        else:
+        # 2. Risk-score proxy: route to most clinically salient category
+        if row.get("food_insecure", 0):
+            return "food_security"
+        elif row.get("housing_unstable", 0):
+            return "housing"
+        elif row.get("no_transport", 0):
+            return "transport_utilities"
+        elif row.get("has_mh", 0):
+            return "mental_health"
+        elif row.get("has_chf", 0):
+            return "heart_failure"
+        elif row.get("has_copd", 0):
+            return "pulmonary"
+        elif row.get("has_hypertension", 0):
+            return "hypertension"
+        elif row.get("has_diabetes", 0):
+            return "diabetes"
+        elif row.get("has_substance", 0):
+            return "substance_use"
+        elif row.get("poor_adherence", 0) or row.get("medication_need", 0):
             return "medication_adherence"
+        else:
+            return "care_access"
 
     rr_first["behavioral_intervention"] = rr_first.apply(assign_behavioral, axis=1)
 
@@ -1117,7 +1179,7 @@ def build_waymark_population(verbose: bool = True) -> WaymarkPopulation:
 
     # Ensure behavioral_intervention is valid
     wpad_pairs["behavioral_intervention"] = wpad_pairs["behavioral_intervention"].where(
-        wpad_pairs["behavioral_intervention"].isin(INTERVENTIONS), "clinical_complexity"
+        wpad_pairs["behavioral_intervention"].isin(INTERVENTIONS), "care_access"
     )
 
     # Deduplicate: one pair per patient (keep primary over weak_positive)

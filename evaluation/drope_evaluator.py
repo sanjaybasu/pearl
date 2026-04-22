@@ -33,7 +33,11 @@ from scipy import stats
 import warnings
 warnings.filterwarnings("ignore")
 
-INTERVENTIONS = ["social_needs", "medication_adherence", "behavioral_health", "clinical_complexity"]
+INTERVENTIONS = [
+    "care_access", "clinical_other", "diabetes", "financial_benefits", "food_security",
+    "heart_failure", "housing", "hypertension", "maternal", "medication_adherence",
+    "mental_health", "pulmonary", "substance_use", "transport_utilities",
+]
 FEATURE_COLS = [
     "age", "female", "charlson_score", "prior_ed_visits_6mo", "prior_hosp_6mo",
     "pharmacy_fills_90d", "missed_pharmacy_fills", "n_chronic",
@@ -571,9 +575,11 @@ class SensitivityAnalysis:
         Training-dependent parameters (require full pipeline re-run):
         - t_min, beta, outcome_window, trajectory_adjustment, wpad_direction
 
-        mu_hat: optional (n_patients, 4) array of S-learner predicted outcome probabilities
-                in LabelEncoder alphabetical order (behavioral_health, clinical_complexity,
-                medication_adherence, social_needs). Required for camden_threshold re-evaluation.
+        mu_hat: optional (n_patients, 14) array of S-learner predicted outcome probabilities
+                in LabelEncoder alphabetical order (care_access, clinical_other, diabetes,
+                financial_benefits, food_security, heart_failure, housing, hypertension,
+                maternal, medication_adherence, mental_health, pulmonary, substance_use,
+                transport_utilities). Required for camden_threshold re-evaluation.
                 If None, primary_imi is used for camden_threshold variants.
         """
         rows = []

@@ -23,7 +23,22 @@ from scipy import stats
 import warnings
 warnings.filterwarnings("ignore")
 
-INTERVENTIONS = ["social_needs", "medication_adherence", "behavioral_health", "clinical_complexity"]
+INTERVENTIONS = [
+    "care_access",         # PCP appointments, care coordination
+    "clinical_other",      # Dental, eye care, wellness (catch-all)
+    "diabetes",            # Diabetes management
+    "financial_benefits",  # Financial, insurance, legal, employment
+    "food_security",       # Food insecurity, nutrition
+    "heart_failure",       # Heart failure management
+    "housing",             # Housing instability, quality
+    "hypertension",        # Hypertension management
+    "maternal",            # Maternity, prenatal, postpartum
+    "medication_adherence", # Medication adherence/optimization
+    "mental_health",       # Depression, anxiety, MH/BH
+    "pulmonary",           # Asthma/COPD
+    "substance_use",       # SUD, alcohol, smoking cessation
+    "transport_utilities", # Transportation, utilities, childcare
+]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -83,16 +98,16 @@ class LACEIndex:
         return 1 / (1 + np.exp(-(scores - 8) * 0.35))
 
     def route_intervention(self, patients: pd.DataFrame) -> np.ndarray:
-        """Risk-score based routing: high LACE → clinical_complexity; low → social_needs."""
+        """Risk-score based routing: high LACE → care_access; medium → medication_adherence."""
         scores = self.score(patients)
         routings = []
         for s in scores:
             if s >= 10:
-                routings.append("clinical_complexity")
+                routings.append("care_access")
             elif s >= 7:
                 routings.append("medication_adherence")
             else:
-                routings.append("social_needs")
+                routings.append("care_access")
         return np.array(routings)
 
     def evaluate(self, patients: pd.DataFrame, outcome_col: str = "y_behavioral") -> Dict:
@@ -144,11 +159,11 @@ class HOSPITALScore:
         return 1 / (1 + np.exp(-(scores - 3) * 0.5))
 
     def route_intervention(self, patients: pd.DataFrame) -> np.ndarray:
-        """Risk-score based routing: high HOSPITAL → clinical_complexity; low → social_needs."""
+        """Risk-score based routing: high HOSPITAL → care_access; medium → medication_adherence."""
         scores = self.score(patients)
         return np.where(
-            scores >= 5, "clinical_complexity",
-            np.where(scores >= 3, "medication_adherence", "social_needs")
+            scores >= 5, "care_access",
+            np.where(scores >= 3, "medication_adherence", "care_access")
         )
 
     def evaluate(self, patients: pd.DataFrame, outcome_col: str = "y_behavioral") -> Dict:
@@ -206,8 +221,8 @@ class XGBoostComparator:
         """Route based on XGBoost risk score (same threshold logic as LACE)."""
         probs = self.predict_proba(patients)
         return np.where(
-            probs > 0.30, "clinical_complexity",
-            np.where(probs > 0.20, "medication_adherence", "social_needs")
+            probs > 0.30, "care_access",
+            np.where(probs > 0.20, "medication_adherence", "care_access")
         )
 
     def evaluate(self, patients: pd.DataFrame, outcome_col: str = "y_behavioral") -> Dict:
@@ -587,7 +602,7 @@ class DecisionTransformerProxy:
         from sklearn.preprocessing import LabelEncoder
         self._le = LabelEncoder().fit(INTERVENTIONS)
         y = self._le.transform(
-            train_data[intv_col].fillna("clinical_complexity").values
+            train_data[intv_col].fillna("care_access").values
         )
 
         # Add return-to-go as a feature (R=0 = desired outcome)
@@ -605,7 +620,7 @@ class DecisionTransformerProxy:
         try:
             return self._le.inverse_transform(self.model.predict(X_aug))
         except Exception:
-            return np.array(["clinical_complexity"] * len(patients))
+            return np.array(["care_access"] * len(patients))
 
     def evaluate_imi(
         self,
@@ -815,7 +830,7 @@ class CQLComparator:
         policy_value = float(np.mean([mu_hat_dr[i, A_enc[i]] for i in range(len(patients))]))
 
         A_behavioral = patients.get("behavioral_intervention",
-                                    pd.Series(["clinical_complexity"] * len(patients)))
+                                    pd.Series(["care_access"] * len(patients)))
         coverage_ok = float(np.mean([rec in A_behavioral.values for rec in recommended]))
 
         return {
@@ -986,7 +1001,7 @@ class SARSAComparator:
 
         # Coverage coefficient (Rashidinejad et al. 2021): fraction of recommended
         # actions that had ≥1 example in behavioral policy training data
-        A_behavioral = patients.get("behavioral_intervention", pd.Series(["clinical_complexity"] * len(patients)))
+        A_behavioral = patients.get("behavioral_intervention", pd.Series(["care_access"] * len(patients)))
         coverage_ok = np.mean([rec in A_behavioral.values for rec in recommended])
 
         return {

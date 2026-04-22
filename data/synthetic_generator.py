@@ -122,40 +122,70 @@ def generate_synthetic_population(
     })
 
     # ─── Patient Subtypes and Ground-Truth Optimal Interventions ──────────
-    # Four subtypes map to the four MoE expert domains.
+    # 14 subtypes map to the 14 MoE expert domains.
     # Ground truth: which intervention type maximally reduces acute care events.
     def assign_subtype(row):
-        """Rule-based ground-truth optimal intervention assignment."""
-        if row["food_insecure"] or (row["adi_percentile"] > 75 and row["no_transport"]):
-            return "social_needs"
+        """Rule-based ground-truth optimal intervention assignment (14-category taxonomy)."""
+        # Condition-specific care (highest specificity first)
+        if row["has_chf"]:
+            return "heart_failure"
+        elif row["has_copd"]:
+            return "pulmonary"
+        elif row["has_diabetes"] and row["missed_pharmacy_fills"] > 2:
+            return "diabetes"
+        elif row["has_hypertension"] and not row["has_chf"]:
+            return "hypertension"
+        # SDOH/social needs (priority when present)
+        elif row["food_insecure"]:
+            return "food_security"
+        elif row["housing_unstable"]:
+            return "housing"
+        elif row["no_transport"] and row["adi_percentile"] > 70:
+            return "transport_utilities"
+        # Behavioral / MH
+        elif row["has_mh"] and row["charlson_score"] < 4:
+            return "mental_health"
+        # Medication adherence
         elif row["missed_pharmacy_fills"] > 2 or row["pharmacy_fills_90d"] < 3:
             return "medication_adherence"
-        elif row["has_mh"] and (row["charlson_score"] < 4):
-            return "behavioral_health"
+        # Access/care coordination
+        elif row["prior_hosp_6mo"] >= 1 and row["charlson_score"] >= 3:
+            return "care_access"
         else:
-            return "clinical_complexity"
+            return "clinical_other"
 
     patients_df["optimal_intervention"] = patients_df.apply(assign_subtype, axis=1)
 
     # Behavioral policy: risk-score based routing with systematic misalignment
-    # Simulates current NBA system's behavioral cloning bias.
+    # Simulates current NBA system's behavioral cloning bias (14-category taxonomy).
     def behavioral_policy(row, rng_local):
         """Behavioral policy: roughly correct but with systematic equity gaps."""
-        # Social needs: under-detected for non-English speakers
-        if row["optimal_intervention"] == "social_needs":
+        opt = row["optimal_intervention"]
+        # Condition-specific routing: high fidelity when clinical signal is clear
+        if opt in ("heart_failure", "pulmonary", "diabetes", "hypertension"):
+            return opt if rng_local.random() < 0.72 else "care_access"
+        # SDOH routing: under-detected for non-English speakers and high-ADI patients
+        elif opt == "food_security":
             if row["primary_language"] != "english":
-                # 50% chance of being routed to wrong intervention (IMI source)
-                return rng_local.choice(
-                    ["social_needs", "clinical_complexity"], p=[0.50, 0.50]
-                )
-            return "social_needs" if rng_local.random() < 0.72 else "medication_adherence"
-        elif row["optimal_intervention"] == "medication_adherence":
-            return "medication_adherence" if rng_local.random() < 0.68 else "clinical_complexity"
-        elif row["optimal_intervention"] == "behavioral_health":
-            # Behavioral health most under-referred (known equity gap)
-            return "behavioral_health" if rng_local.random() < 0.45 else "clinical_complexity"
+                return rng_local.choice(["food_security", "care_access"], p=[0.50, 0.50])
+            return "food_security" if rng_local.random() < 0.70 else "care_access"
+        elif opt == "housing":
+            return "housing" if rng_local.random() < 0.60 else "care_access"
+        elif opt == "transport_utilities":
+            return "transport_utilities" if rng_local.random() < 0.55 else "care_access"
+        # Mental health most under-referred (known equity gap)
+        elif opt == "mental_health":
+            return "mental_health" if rng_local.random() < 0.45 else "care_access"
+        elif opt == "substance_use":
+            return "substance_use" if rng_local.random() < 0.50 else "mental_health"
+        elif opt == "medication_adherence":
+            return "medication_adherence" if rng_local.random() < 0.68 else "care_access"
+        elif opt == "maternal":
+            return "maternal" if rng_local.random() < 0.75 else "care_access"
+        elif opt == "financial_benefits":
+            return "financial_benefits" if rng_local.random() < 0.55 else "care_access"
         else:
-            return "clinical_complexity" if rng_local.random() < 0.75 else "medication_adherence"
+            return "care_access" if rng_local.random() < 0.75 else "clinical_other"
 
     rng_bp = np.random.default_rng(seed + 1)
     patients_df["behavioral_intervention"] = patients_df.apply(
@@ -190,7 +220,12 @@ def generate_synthetic_population(
         return np.clip(prob, 0.02, 0.85)
 
     rng_po = np.random.default_rng(seed + 2)
-    interventions = ["social_needs", "medication_adherence", "behavioral_health", "clinical_complexity"]
+    interventions = [
+        "care_access", "clinical_other", "diabetes", "financial_benefits",
+        "food_security", "heart_failure", "housing", "hypertension",
+        "maternal", "medication_adherence", "mental_health", "pulmonary",
+        "substance_use", "transport_utilities",
+    ]
     for intv in interventions:
         patients_df[f"p_outcome_{intv}"] = patients_df.apply(
             lambda row: compute_potential_outcome(row, intv, rng_po), axis=1
@@ -348,39 +383,118 @@ Generate a personalized care management plan specifying:
 
 def format_care_plan(intervention_type: str, row: pd.Series) -> str:
     """Format an intervention type as a natural language care plan (y_w or y_l)."""
+    _lang = row.get("primary_language", "english")
+    _transport = row.get("no_transport", False)
+    _chf = row.get("has_chf", False)
+    _copd = row.get("has_copd", False)
+    _ckd = row.get("has_ckd", False)
+    _specialists = ", ".join([s for s, f in [
+        ("cardiologist", _chf), ("pulmonologist", _copd), ("nephrologist", _ckd)
+    ] if f]) or "PCP coordination"
+
     plans = {
-        "social_needs": f"""Care Management Plan:
-Priority intervention: CHW home visit + community resource navigation
-Focus: {'Food pantry referral (Spanish-language resources available)' if row.get('primary_language') == 'spanish' else 'Food security assessment and pantry referral'}{', transportation assistance coordination' if row.get('no_transport') else ''}
-Intensity: 2-3 CHW contacts/month (home visits preferred over telephonic for SDOH complexity)
-Escalation: Contact supervising RN if patient misses 2 contacts OR reports new housing crisis
+        "care_access": f"""Care Management Plan:
+Priority intervention: Care coordination — PCP appointment scheduling + care transitions management
+Focus: Expedited PCP visit, specialist referral coordination ({_specialists}), care gap closure
+Intensity: Biweekly CHW check-ins; monthly care team huddle
+Escalation: Same-day PCP triage if new acute symptom; expedited ED-avoidance protocol if needed
+What NOT to recommend: Isolated SDOH navigation without clinical follow-up; behavioral health referral without documented MH history""",
+
+        "clinical_other": f"""Care Management Plan:
+Priority intervention: CHW-coordinated wellness visit + preventive care gap closure
+Focus: Dental referral, vision screening, age-appropriate preventive services
+Intensity: 1 CHW contact/month; referral coordination within 30 days
+Escalation: Notify PCP if patient reports new symptoms or declines preventive care
+What NOT to recommend: Intensive disease management (no high-acuity chronic condition driving utilization)""",
+
+        "diabetes": f"""Care Management Plan:
+Priority intervention: CHW outreach + pharmacist diabetes medication review
+Focus: HbA1c monitoring, insulin technique, meter supplies, dietary counseling
+Intensity: Weekly check-ins for first 4 weeks; pharmacist consult within 7 days; then 2x/month
+Escalation: Alert PCP if HbA1c >10% or patient reports hypoglycemia symptoms
+What NOT to recommend: Housing/SDOH focus without confirming glycemic control; intensive multidisciplinary if single medication adherence gap""",
+
+        "financial_benefits": f"""Care Management Plan:
+Priority intervention: CHW financial navigation + benefits enrollment
+Focus: Medicaid redetermination support, prescription assistance programs, SNAP/TANF enrollment, legal aid referral
+Intensity: 2 CHW contacts in first 2 weeks (paperwork-intensive); then monthly follow-up
+Escalation: Notify supervising RN if patient reports coverage loss or medication cost barrier
+What NOT to recommend: Clinical disease management focus when financial barrier is the root cause of non-adherence""",
+
+        "food_security": f"""Care Management Plan:
+Priority intervention: CHW home visit + community food resource navigation
+Focus: {'Food pantry referral (Spanish-language resources available)' if _lang == 'spanish' else 'Food security assessment and pantry referral'}{', transportation assistance to food resources' if _transport else ''}; SNAP enrollment if eligible
+Intensity: 2-3 CHW contacts/month (home visits preferred for SDOH complexity)
+Escalation: Contact supervising RN if patient reports food supply crisis or medication-food interaction concern
 What NOT to recommend: Intensive multidisciplinary team (clinical stability confirmed); behavioral health referral without documented MH history""",
+
+        "heart_failure": f"""Care Management Plan:
+Priority intervention: CHW home visit + cardiology care coordination
+Focus: Daily weight monitoring (threshold: >2 lb gain → CHW call), furosemide adherence, sodium-restricted diet, dyspnea scale tracking
+Intensity: 3 CHW contacts/month; cardiologist appointment within 14 days; telehealth check-in weekly
+Escalation: Same-day ED/cardiologist triage if weight gain >2 lb OR new dyspnea; notify PCP immediately
+What NOT to recommend: SDOH focus without first stabilizing fluid status; isolated telephonic check-ins without home weight scale setup""",
+
+        "housing": f"""Care Management Plan:
+Priority intervention: CHW housing stability navigation
+Focus: Eviction prevention, rental assistance programs, habitability assessment, legal aid referral
+Intensity: Weekly CHW contact during acute housing crisis; 2x/month after stabilization
+Escalation: Emergency housing placement coordination if imminent eviction risk; notify supervising RN if living conditions affect medication storage
+What NOT to recommend: Clinical disease management-first approach when housing instability is driving non-adherence""",
+
+        "hypertension": f"""Care Management Plan:
+Priority intervention: CHW home BP monitoring setup + pharmacist antihypertensive review
+Focus: Home BP log, medication timing, sodium reduction, DASH diet counseling
+Intensity: Biweekly CHW contact in first month; pharmacist review within 14 days; then monthly
+Escalation: Alert PCP if BP >180/110 on 2 readings OR patient reports headache/visual change
+What NOT to recommend: Intensive social work without BP stabilization as first priority; specialty referral before PCP-level optimization""",
+
+        "maternal": f"""Care Management Plan:
+Priority intervention: CHW prenatal/postpartum navigation
+Focus: OB appointment scheduling, WIC enrollment, breastfeeding support, postpartum depression screening
+Intensity: Weekly CHW contact through 6 weeks postpartum; {'Spanish-language doula referral' if _lang == 'spanish' else '2x/month CHW visits'}
+Escalation: Immediate OB triage if preeclampsia symptoms; postpartum depression referral if Edinburgh score ≥ 13
+What NOT to recommend: Generic chronic disease management focus without obstetric care coordination""",
 
         "medication_adherence": f"""Care Management Plan:
 Priority intervention: CHW telephonic outreach + pharmacist medication review
-Focus: Medication reconciliation, pill organizer setup, pharmacy synchronization
-Intensity: Weekly check-ins for first month, then 2x/month; pharmacist consult within 7 days
-Escalation: Alert PCP if >2 refill gaps detected OR medication side effect reported
-What NOT to recommend: Housing case management (housing stable); intensive social work without documented SDOH need""",
+Focus: Medication reconciliation, pill organizer setup, pharmacy synchronization, auto-refill enrollment
+Intensity: Weekly check-ins for first month; pharmacist consult within 7 days; then 2x/month
+Escalation: Alert PCP if >2 refill gaps detected OR patient reports side effect; expedited pharmacist review if formulary change
+What NOT to recommend: Housing or SDOH focus when medication supply is confirmed; intensive multidisciplinary without first resolving adherence barrier""",
 
-        "behavioral_health": f"""Care Management Plan:
+        "mental_health": f"""Care Management Plan:
 Priority intervention: Behavioral health referral + co-located care coordination
-Focus: MH/SUD assessment, warm handoff to BH provider, stigma-aware communication
-Intensity: 1 CHW contact/week during BH intake period; reduce to 2x/month after engagement confirmed
-Escalation: Crisis line enrollment if PHQ-9 ≥ 15; notify PCP immediately if safety concern
-What NOT to recommend: Intensive disease management protocol (BH is primary driver, not chronic disease complexity)""",
+Focus: PHQ-9/GAD-7 screening, warm handoff to BH provider, stigma-aware communication, PCP-BH integration
+Intensity: 1 CHW contact/week during BH intake; reduce to 2x/month after engagement confirmed
+Escalation: Crisis line enrollment if PHQ-9 ≥ 15; notify PCP immediately if safety concern; 24h follow-up after any crisis disclosure
+What NOT to recommend: Disease management protocol as primary focus (BH is the primary driver); medication-first without BH assessment""",
 
-        "clinical_complexity": f"""Care Management Plan:
-Priority intervention: Care coordinator-led multidisciplinary team meeting
-Focus: Specialist coordination ({', '.join([c for c, flag in [('cardiologist', row.get('has_chf')), ('pulmonologist', row.get('has_copd')), ('nephrologist', row.get('has_ckd'))] if flag])if any([row.get('has_chf'), row.get('has_copd'), row.get('has_ckd')]) else 'PCP coordination'}), care transitions management
-Intensity: Monthly care team huddles; biweekly CHW check-ins
-Escalation: Expedited PCP visit if Charlson worsens or new acute complaint
-What NOT to recommend: Isolated CHW-only management (clinical complexity requires licensed oversight)""",
+        "pulmonary": f"""Care Management Plan:
+Priority intervention: CHW asthma/COPD action plan setup + pulmonology coordination
+Focus: Inhaler technique training, action plan review, trigger reduction (smoking cessation if indicated), spirometry referral
+Intensity: Biweekly CHW contacts; pulmonology appointment within 21 days; rescue inhaler supply confirmed
+Escalation: Same-day PCP/ED triage if peak flow <50% personal best OR new accessory muscle use; smoking cessation warm referral within 48h
+What NOT to recommend: SDOH focus without first stabilizing pulmonary control; generic wellness visit as substitute for pulmonary-specific plan""",
+
+        "substance_use": f"""Care Management Plan:
+Priority intervention: SUD warm referral + CHW motivational outreach
+Focus: AUDIT-C/DAST-10 screening, SBIRT, MAT referral (buprenorphine if OUD), peer support specialist connection
+Intensity: Weekly CHW contact during treatment engagement; {'Spanish-language peer support available' if _lang == 'spanish' else ''}; 2x/month after 30-day engagement
+Escalation: Crisis triage if overdose risk disclosed; naloxone dispensing and training; notify PCP within 24h of any acute safety concern
+What NOT to recommend: Generic chronic disease management without SUD treatment integration; medication-only approach without behavioral health coordination""",
+
+        "transport_utilities": f"""Care Management Plan:
+Priority intervention: CHW transportation and utilities navigation
+Focus: Medical transportation enrollment (NEMT), utility assistance (LIHEAP), childcare voucher, ride-share program
+Intensity: 2 CHW contacts in first 2 weeks (enrollment-intensive); then monthly follow-up
+Escalation: Notify supervising RN if appointment non-adherence due to transport; emergency utility shut-off triggers same-week CHW contact
+What NOT to recommend: Clinical disease management when transport/utility barrier is the root cause of missed appointments""",
 
         "no_cm_baseline": """Care Management Plan:
 No structured care management assigned.
 Patient on standard ACO monitoring; PCP-directed care only.
-No CHW outreach scheduled."""
+No CHW outreach scheduled.""",
     }
     return plans.get(intervention_type, plans["no_cm_baseline"])
 

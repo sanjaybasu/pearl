@@ -152,22 +152,28 @@ def fig_imi_equity(outpath: str) -> None:
 def fig_camden(outpath: str) -> None:
     """Bar chart comparing PEARL and Camden protocol intervention distributions
     for 242 Camden-profile rising-risk patients, with simulated readmission comparison.
+    14-category taxonomy (from pipeline run with 14-category PEARL).
     """
-    labels = ["Social needs", "Medication adherence", "Behavioral health", "Clinical complexity"]
-    camden  = [0.0,  0.0,  0.0,   1.00]   # uniform intensive protocol → all clinical_complexity
-    pearl   = [0.099, 0.169, 0.438, 0.293]
+    # 11 categories present in Camden redirect analysis (others ~0%)
+    labels = ["Mental\nhealth", "Hyper-\ntension", "Heart\nfailure", "Housing",
+              "Care\naccess", "Pulmonary", "Diabetes", "Financial\nbenefits",
+              "Food\nsecurity", "Medication\nadherence", "Clinical\nother"]
+    # Camden protocol: 100% care_access (uniform intensive multidisciplinary)
+    camden = [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    # PEARL distribution for Camden-profile patients (from pipeline output)
+    pearl  = [0.434, 0.202, 0.083, 0.066, 0.058, 0.050, 0.033, 0.029, 0.025, 0.017, 0.004]
 
     x = np.arange(len(labels))
     width = 0.35
 
-    fig, axes = plt.subplots(1, 2, figsize=(9, 4))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
 
     # Panel A: intervention distribution
     ax = axes[0]
     ax.bar(x - width/2, camden, width, label="Camden uniform protocol", color=RED,   alpha=0.8)
     ax.bar(x + width/2, pearl,  width, label="PEARL personalized",       color=BLUE, alpha=0.8)
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, fontsize=7.5, rotation=15, ha="right")
+    ax.set_xticklabels(labels, fontsize=7.0, rotation=30, ha="right")
     ax.set_ylabel("Proportion of patients assigned", fontsize=8.5)
     ax.set_title("A. Intervention type distribution\n(N = 242 Camden-profile patients)", fontsize=8.5, loc="left")
     ax.legend(fontsize=7.5, frameon=True)
@@ -333,14 +339,14 @@ def fig_patient_flow(outpath: str) -> None:
 
     Numbers sourced from the PEARL manuscript (N = 34,971 primary cohort).
     """
-    fig, ax = plt.subplots(figsize=(8.5, 11))
+    fig, ax = plt.subplots(figsize=(10, 13))
     ax.set_xlim(0, 10)
-    ax.set_ylim(0, 14)
+    ax.set_ylim(0, 15.5)
     ax.set_axis_off()
     ax.set_title(
         "Appendix Figure 1. Patient flow diagram\n"
         "(N = 34,971 rising-risk patients; WPAD = Within-Patient Administrative Discontinuity)",
-        fontsize=9, loc="left"
+        fontsize=9, loc="left", pad=6
     )
 
     BOX_GRAY  = "#f4f4f4"
@@ -349,134 +355,138 @@ def fig_patient_flow(outpath: str) -> None:
     BOX_RED   = "#fde8e8"
     EXCL      = "#fff3cd"
 
-    def _rect(xc, yc, w, h, text, fc=BOX_GRAY, ec="#888888", fs=8.0, fw="normal", tc="#222222"):
+    # Central spine x position
+    CX = 4.8
+
+    def _rect(xc, yc, w, h, text, fc=BOX_GRAY, ec="#888888",
+              fs=8.0, fw="normal", tc="#222222"):
+        """Draw a rounded box with text clipped to the box dimensions."""
         p = mpatches.FancyBboxPatch(
             (xc - w / 2, yc - h / 2), w, h,
-            boxstyle="round,pad=0.06", facecolor=fc, edgecolor=ec, linewidth=0.9, zorder=2
+            boxstyle="round,pad=0.08", facecolor=fc, edgecolor=ec,
+            linewidth=0.9, zorder=2
         )
         ax.add_patch(p)
         ax.text(xc, yc, text, ha="center", va="center",
                 fontsize=fs, fontweight=fw, color=tc,
-                multialignment="center", zorder=3, wrap=True)
+                multialignment="center", zorder=3,
+                linespacing=1.35)
 
-    def _arrow(y_top, y_bot, xc=5.0):
+    def _arrow(y_top, y_bot, xc=CX):
         ax.annotate("", xy=(xc, y_bot), xytext=(xc, y_top),
                     arrowprops=dict(arrowstyle="->, head_width=0.18, head_length=0.14",
                                    color="#555555", lw=1.1), zorder=4)
 
-    def _side_excl(xc, yc, text):
-        """Exclusion box off to the right."""
+    def _excl_right(y_mid, line1, line2=""):
+        """Exclusion / secondary box to the right with horizontal arrow."""
+        rx = 8.55      # center x of exclusion box
+        bw, bh = 2.6, 0.75 + (0.28 if line2 else 0)
         p = mpatches.FancyBboxPatch(
-            (xc - 1.8, yc - 0.45), 3.6, 0.9,
-            boxstyle="round,pad=0.05", facecolor=EXCL, edgecolor="#c0a000", linewidth=0.8, zorder=2
+            (rx - bw / 2, y_mid - bh / 2), bw, bh,
+            boxstyle="round,pad=0.07", facecolor=EXCL,
+            edgecolor="#b8860b", linewidth=0.8, zorder=2
         )
         ax.add_patch(p)
-        ax.text(xc, yc, text, ha="center", va="center",
-                fontsize=7.5, color="#555500", multialignment="center", zorder=3)
-        # horizontal arrow from main spine to box
-        ax.annotate("", xy=(xc - 1.8, yc), xytext=(5.0, yc),
-                    arrowprops=dict(arrowstyle="->, head_width=0.14, head_length=0.10",
-                                   color="#c0a000", lw=0.8), zorder=4)
+        txt = line1 + ("\n" + line2 if line2 else "")
+        ax.text(rx, y_mid, txt, ha="center", va="center",
+                fontsize=7.5, color="#5c4000", multialignment="center",
+                zorder=3, linespacing=1.3)
+        # Arrow from right edge of main spine box → left edge of excl box
+        ax.annotate("", xy=(rx - bw / 2, y_mid),
+                    xytext=(CX + 3.3, y_mid),
+                    arrowprops=dict(arrowstyle="->, head_width=0.13, head_length=0.10",
+                                   color="#b8860b", lw=0.8), zorder=4)
 
     # ── Box 1: Patients assessed ──────────────────────────────────────────────
-    _rect(5, 13.3, 7.5, 0.9,
-          "Patients in predicted-risk rising stratum\n"
-          "(70th–90th percentile, 2023–2025)\nN = 39,317",
+    _rect(CX, 14.65, 6.6, 0.95,
+          "Patients in predicted-risk rising stratum\n(70th–90th percentile, 2023–2025)\nN = 39,317",
           fc=BOX_GRAY, ec="#666666", fs=8.5, fw="bold")
-    _arrow(12.85, 12.30)
+    _arrow(14.17, 13.60)
 
-    # Exclusion: incomplete linkage
-    _side_excl(8.0, 12.58,
-               "Excluded: incomplete\nadmin. linkage  N = 4,346")
+    # Exclusion right
+    _excl_right(13.88, "Excluded: incomplete", "administrative linkage  N = 4,346")
 
     # ── Box 2: Analysis cohort ────────────────────────────────────────────────
-    _rect(5, 12.0, 7.5, 0.9,
+    _rect(CX, 13.20, 6.6, 0.95,
           "Included in analysis (complete linkage)\nN = 34,971  (89.0%)\n"
-          "Mean age 36.1 yr; 60.9% female; Charlson index 1.00",
+          "Age 36.1 yr (mean); 60.9% female; Charlson index 1.00",
           fc=BOX_BLUE, ec=BLUE, fs=8.0)
-    _arrow(11.55, 10.80)
+    _arrow(12.72, 12.10)
 
-    # ── Box 3: 80/20 split ────────────────────────────────────────────────────
-    ax.annotate("", xy=(2.8, 10.55), xytext=(5.0, 10.80),
-                arrowprops=dict(arrowstyle="->, head_width=0.14, head_length=0.12",
-                               color="#555555", lw=1.1), zorder=4)
-    ax.annotate("", xy=(7.2, 10.55), xytext=(5.0, 10.80),
-                arrowprops=dict(arrowstyle="->, head_width=0.14, head_length=0.12",
-                               color="#555555", lw=1.1), zorder=4)
-    # split labels
-    ax.text(5.0, 10.82, "80% / 20% random split", ha="center", va="bottom",
+    # 80/20 split fork
+    ax.text(CX, 12.12, "80% / 20% random split", ha="center", va="bottom",
             fontsize=7.5, color="#555555")
+    ax.annotate("", xy=(2.5, 11.82), xytext=(CX, 12.10),
+                arrowprops=dict(arrowstyle="->, head_width=0.14, head_length=0.12",
+                               color="#555555", lw=1.0), zorder=4)
+    ax.annotate("", xy=(7.1, 11.82), xytext=(CX, 12.10),
+                arrowprops=dict(arrowstyle="->, head_width=0.14, head_length=0.12",
+                               color="#555555", lw=1.0), zorder=4)
 
-    _rect(2.8, 10.0, 4.0, 0.85,
+    # ── Box 3a/3b: Train / Test split ────────────────────────────────────────
+    _rect(2.5, 11.38, 4.2, 0.88,
           "Training set\nN = 27,976  (80%)\n(model fitting)",
           fc=BOX_GREEN, ec=GREEN, fs=7.8)
-
-    _rect(7.2, 10.0, 4.0, 0.85,
+    _rect(7.1, 11.38, 4.2, 0.88,
           "Test set (DR-OPE evaluation)\nN = 6,995  (20%)\n(held-out; no model fitting)",
           fc=BOX_RED, ec=RED, fs=7.8)
 
-    # ── Box 4: WPAD identification (from training set) ────────────────────────
-    ax.annotate("", xy=(5.0, 8.75), xytext=(2.8, 9.57),
+    # Arrow from training set down to WPAD box
+    ax.annotate("", xy=(CX, 10.30), xytext=(2.5, 10.94),
                 arrowprops=dict(arrowstyle="->, head_width=0.14, head_length=0.12",
-                               color="#555555", lw=1.1), zorder=4)
-    ax.text(3.8, 9.15, "WPAD\nidentification", ha="center", va="center",
-            fontsize=7.5, color="#555555", style="italic")
+                               color="#555555", lw=1.0), zorder=4)
+    ax.text(3.4, 10.60, "WPAD identification\n(from training set)",
+            ha="center", va="center", fontsize=7.5, color="#555555", style="italic")
 
-    _rect(5.0, 8.40, 7.5, 0.95,
-          "WPAD natural experiment: staggered ACO onboarding\n"
-          "1,707 eligible patient-window pairs assessed for WPAD pairing\n"
-          "(ACO staggered onboarding; N = 222 unique patients)",
+    # ── Box 4: WPAD natural experiment ───────────────────────────────────────
+    _rect(CX, 9.88, 6.6, 0.90,
+          "WPAD natural experiment: staggered program onboarding\n"
+          "1,707 patient-window pairs assessed for WPAD pairing\n"
+          "(222 unique patients; Type 1 primary design)",
           fc=BOX_GRAY, ec="#888888", fs=7.8)
+    _arrow(9.43, 8.72)
 
-    _arrow(7.92, 7.20)
-
-    # ── Box 5: Pair outcomes ──────────────────────────────────────────────────
-    _rect(5.0, 6.80, 7.5, 0.90,
-          "Primary within-patient preference pairs:\n"
-          "Y_on = 0, Y_off = 1 (care management prevented event)  →  N = 622\n"
-          "Weak-positive pairs: Y_on = 0, Y_off = 0  →  N = 1,085  (weight 0.5)\n"
+    # ── Box 5: Pair classification ────────────────────────────────────────────
+    _rect(CX, 8.28, 6.6, 0.88,
+          "Primary pairs: Y_on = 0, Y_off = 1  →  N = 622\n"
+          "Weak-positive: Y_on = 0, Y_off = 0  →  N = 1,085  (weight 0.5)\n"
           "Discarded: Y_on = 1  →  N = 0  (no poor outcomes during CM)",
-          fc=BOX_BLUE, ec=BLUE, fs=7.5)
+          fc=BOX_BLUE, ec=BLUE, fs=7.6)
 
-    # Side: ITT pairs
-    _side_excl(8.15, 6.10,
-               "Secondary ITT pairs\n(Medicaid eligibility churn)\nN = 221")
-    ax.text(5.0, 6.10, "→ secondary", ha="center", va="center",
-            fontsize=7, color="#555500", style="italic")
+    # Secondary ITT pairs — right side
+    _excl_right(7.80, "Secondary (ITT) pairs:", "Medicaid churn  N = 221")
 
-    _arrow(6.35, 5.50)
+    _arrow(7.84, 7.10)
 
     # ── Box 6: Cross-patient pairs ────────────────────────────────────────────
-    _rect(5.0, 5.10, 7.5, 0.80,
+    _rect(CX, 6.68, 6.6, 0.80,
           "Cross-patient IPTW pairs (supplemental training signal)\n"
           "Matched on X; AIPW-weighted; clip [0.1, 10]  →  N = 30,021",
           fc=BOX_GRAY, ec="#888888", fs=7.8)
+    _arrow(6.28, 5.50)
 
-    _arrow(4.70, 4.05)
-
-    # ── Box 7: PEARL training ─────────────────────────────────────────────────
-    _rect(5.0, 3.70, 7.5, 0.80,
+    # ── Box 7: PEARL training ──────────────────────────────────────────────
+    _rect(CX, 5.08, 6.6, 0.80,
           "PEARL training: IPTW-weighted DPO with group-stratified fairness loss\n"
-          "622 primary + 30,021 cross-patient pairs; 6 falsification tests (T1–T5 pass)",
+          "622 primary + 30,021 cross-patient pairs; falsification tests T1–T5 pass",
           fc=BOX_BLUE, ec=BLUE, fs=7.8, fw="bold")
+    _arrow(4.68, 3.95)
 
-    _arrow(3.30, 2.55)
-
-    # ── Box 8: Evaluation ────────────────────────────────────────────────────
-    _rect(5.0, 2.20, 7.5, 0.80,
+    # ── Box 8: Evaluation ─────────────────────────────────────────────────────
+    _rect(CX, 3.55, 6.6, 0.78,
           "Evaluation on held-out test set (N = 6,995; no overlap with training data)\n"
-          "Primary: IMI reduction  ·  Secondary: DR-OPE policy value  ·  Tertiary: DM event rate",
+          "Primary: IMI reduction  ·  Secondary: DR-OPE  ·  Tertiary: DM event rate",
           fc=BOX_GREEN, ec=GREEN, fs=7.8)
+    _arrow(3.16, 2.40)
 
-    _arrow(1.80, 1.15)
-
-    # ── Box 9: Results ───────────────────────────────────────────────────────
-    _rect(5.0, 0.75, 7.5, 0.75,
-          "IMI: 10.0% → 2.0% (Δ = 7.9 pp; p < 0.001)  ·  "
+    # ── Box 9: Results ────────────────────────────────────────────────────────
+    _rect(CX, 2.00, 6.6, 0.75,
+          "IMI: 10.0% → 2.0% (Δ = 7.9 pp; p < 0.001)\n"
           "DR-OPE rank 3/13  ·  ESS = 2,656 (38.0%)",
-          fc="#e8f8e8", ec=GREEN, fs=7.8, fw="bold", tc="#155724")
+          fc="#e8f8e8", ec=GREEN, fs=8.0, fw="bold", tc="#155724")
 
-    fig.savefig(outpath)
+    with matplotlib.rc_context({"savefig.bbox": None, "savefig.pad_inches": 0.15}):
+        fig.savefig(outpath, bbox_inches=None)
     plt.close(fig)
     print(f"Saved: {outpath}")
 
