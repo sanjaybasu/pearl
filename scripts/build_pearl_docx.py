@@ -96,6 +96,46 @@ def set_line_spacing_15(doc: Document) -> None:
                     pf.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
 
 
+def set_font_cambria(doc: Document, font_name: str = "Cambria") -> None:
+    """Set the default body font to Cambria throughout the document."""
+    # 1. Set Normal style font
+    try:
+        doc.styles["Normal"].font.name = font_name
+    except Exception:
+        pass
+
+    # 2. Override document-level default fonts in XML
+    styles_element = doc.styles.element
+    docDefaults = styles_element.find(qn("w:docDefaults"))
+    if docDefaults is not None:
+        rPrDefault = docDefaults.find(qn("w:rPrDefault"))
+        if rPrDefault is None:
+            rPrDefault = OxmlElement("w:rPrDefault")
+            docDefaults.append(rPrDefault)
+        rPr = rPrDefault.find(qn("w:rPr"))
+        if rPr is None:
+            rPr = OxmlElement("w:rPr")
+            rPrDefault.append(rPr)
+        rFonts = rPr.find(qn("w:rFonts"))
+        if rFonts is None:
+            rFonts = OxmlElement("w:rFonts")
+            rPr.append(rFonts)
+        rFonts.set(qn("w:ascii"), font_name)
+        rFonts.set(qn("w:hAnsi"), font_name)
+        rFonts.set(qn("w:cs"), font_name)
+
+    # 3. Set font on every run
+    for para in doc.paragraphs:
+        for run in para.runs:
+            run.font.name = font_name
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    for run in para.runs:
+                        run.font.name = font_name
+
+
 def _make_border_elm(val="single", sz="4", space="0", color="000000"):
     """Return an XML border element (w:top / w:bottom etc. — caller adds tag)."""
     elm = OxmlElement("w:top")  # tag overwritten by caller
@@ -184,6 +224,9 @@ def process_file(spec: dict) -> None:
 
     print(f"  Post-processing with python-docx...")
     doc = Document(str(out))
+
+    set_font_cambria(doc)
+    print(f"  Font set to Cambria")
 
     set_all_text_black(doc)
     print(f"  All text set to black")

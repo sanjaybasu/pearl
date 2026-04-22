@@ -1,49 +1,9 @@
-# Python
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
-*.egg
+.DS_Store
 *.egg-info/
 dist/
 build/
-.eggs/
-.tox/
-.venv/
-venv/
-env/
-
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb_checkpoints
-
-# Outputs — no results, data, or figures from proprietary runs
-outputs/
-data/*.parquet
-data/*.csv
-data/*.feather
-data/*.pkl
-data/*.gz
-data/raw/
-data/waymark/
-
-# Submission files — manuscript, appendix, PDFs, DOCX, figures
-submission/
-
-# Logs from proprietary pipeline runs
-*.log
-/tmp/pearl_*
-
-# OS
-.DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-*.swp
-
-# Credentials / env
 .env
-*.env
-secrets.*
-vault_token*
+.ipynb_checkpoints/
