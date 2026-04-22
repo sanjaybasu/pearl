@@ -29,7 +29,7 @@ FILES = [
         "src": PEARL_DIR / "manuscript" / "PEARL_manuscript_v3.md",
         "out": OUTPUT_DIR / "PEARL_manuscript_v3.docx",
         "figures": {
-            "Figure 1.": FIGS_DIR / "fig1_pipeline.png",
+            "Figure 1.": FIGS_DIR / "fig_1_nano.png",
             "Figure 2.": FIGS_DIR / "fig2_drope_forest.png",
         },
     },
