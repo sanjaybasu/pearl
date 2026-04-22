@@ -67,7 +67,9 @@ pearl/
 ├── scripts/
 │   ├── run_pipeline.py           # End-to-end pipeline (--synthetic or --waymark)
 │   ├── generate_figures.py       # Reproduce manuscript figures from results CSV
-│   └── run_sensitivity.sh        # Run all 20 pre-specified sensitivity analyses
+│   ├── run_sensitivity.sh        # Run all 20 pre-specified sensitivity analyses
+│   ├── build_pearl_pdf.py        # Build combined manuscript+supplement PDF (pandoc+xelatex)
+│   └── build_pearl_docx.py      # Build DOCX submission files (pandoc+python-docx)
 ├── notebooks/
 │   └── pearl_demo.ipynb          # Full pipeline demo on synthetic data (~2 min, CPU)
 └── packaging/
