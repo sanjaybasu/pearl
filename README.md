@@ -1,8 +1,10 @@
 # PEARL: Policy Evolution through Aligned Retrospective Learning
 
-**AI-guided next best action selection for rising-risk Medicaid ACO care management**
+**Quantifying intervention misalignment in ambulatory care management with within-patient natural experiments**
 
 Basu S, Sheth P, Patel S. Manuscript under review, 2026.
+
+The Intervention Misalignment Index (IMI) is the fraction of patients assigned a care management intervention type for which a better-matched alternative exists, identifiable from within-patient natural experiments created by staggered ACO onboarding logistics (Within-Patient Administrative Discontinuity, WPAD). Among 34,971 rising-risk Medicaid patients, IMI under behavioral routing is 27.0%; the within-patient causal-identification signal — not the preference-optimization architecture — drives intervention-matching improvement.
 
 ---
 
@@ -87,13 +89,26 @@ pearl/
 pip install -r requirements.txt
 
 # Run full pipeline on synthetic data (~2 min on CPU)
-python scripts/run_pipeline.py --synthetic --n-patients 50000
+python scripts/run_pipeline.py --synthetic --n_patients 50000
 
 # Or open the notebook demo
 jupyter notebook notebooks/pearl_demo.ipynb
 ```
 
 The synthetic pipeline runs WPAD pair construction, falsification tests T1–T6, IMI estimation, IPTW-DPO training, DR-OPE evaluation of all 13 policies, and sensitivity analysis — producing the same output structure as the real-data run.
+
+## Reproducibility
+
+All pipeline outputs (CSVs, JSONs, checkpoints, figures) are written to `notebooks/pearl/outputs/` at the repository root by default. Override the output location via the `PEARL_OUTPUT_BASE` environment variable.
+
+```bash
+# Use a custom output directory
+PEARL_OUTPUT_BASE=/tmp/pearl_run python scripts/run_pipeline.py --synthetic
+```
+
+The full pipeline is deterministic given a fixed seed (default 42 in `configs/config.py`). Bootstrap confidence intervals use a separate seed via `--seed` flag.
+
+A CodeOcean compute capsule reproducing the synthetic-data pipeline end-to-end (DOI to be assigned on acceptance) provides a public, browser-runnable verification environment that requires no DUA.
 
 ---
 
@@ -146,8 +161,8 @@ Results of all 20 sensitivity analyses are reported in the accompanying manuscri
 
 ```bibtex
 @article{basu2026pearl,
-  title   = {{PEARL}: {AI}-guided next best action selection for rising-risk
-             {Medicaid} {ACO} care management --- a within-patient natural experiment},
+  title   = {Quantifying intervention misalignment in ambulatory care management
+             with within-patient natural experiments},
   author  = {Basu, Sanjay and Sheth, Parth and Patel, Sadiq},
   year    = {2026},
   note    = {Manuscript under review}
