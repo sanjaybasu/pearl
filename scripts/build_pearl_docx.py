@@ -26,16 +26,16 @@ OUTPUT_DIR = PEARL_DIR
 
 FILES = [
     {
-        "src": PEARL_DIR / "manuscript" / "PEARL_manuscript_v3.md",
-        "out": OUTPUT_DIR / "PEARL_manuscript_v3.docx",
+        "src": PEARL_DIR / "manuscript" / "PEARL_manuscript_v4.md",
+        "out": OUTPUT_DIR / "PEARL_manuscript_v4.docx",
         "figures": {
             "Figure 1.": FIGS_DIR / "fig_1_nano.png",
             "Figure 2.": FIGS_DIR / "fig2_drope_forest.png",
         },
     },
     {
-        "src": PEARL_DIR / "supplement" / "PEARL_supplement_v3.md",
-        "out": OUTPUT_DIR / "PEARL_supplement_v3.docx",
+        "src": PEARL_DIR / "supplement" / "PEARL_supplement_v4.md",
+        "out": OUTPUT_DIR / "PEARL_supplement_v4.docx",
         "figures": {
             "Appendix Figure 1.": FIGS_DIR / "fig_patient_flow.png",
             "Appendix Figure 2.": FIGS_DIR / "fig3_imi_equity.png",
@@ -44,8 +44,8 @@ FILES = [
         },
     },
     {
-        "src": PEARL_DIR / "cover_letter" / "cover_letter.md",
-        "out": OUTPUT_DIR / "PEARL_cover_letter.docx",
+        "src": PEARL_DIR / "cover_letter" / "cover_letter_v4.md",
+        "out": OUTPUT_DIR / "PEARL_cover_letter_v4.docx",
         "figures": {},
     },
 ]
