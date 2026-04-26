@@ -244,7 +244,7 @@ def fig_sensitivity(outpath: str, sens_csv: str = "outputs/results/sensitivity_r
 
     df = pd.read_csv(sens_csv)
 
-    # Short, readable labels: "t_min = 60 (★)" instead of long title-case
+    # Short, readable labels: "t_min = 60 (*)" instead of long title-case
     PARAM_ABBREV = {
         "t_min": "Min. window (days)",
         "iptw_clip": "IPTW clip",
@@ -256,7 +256,7 @@ def fig_sensitivity(outpath: str, sens_csv: str = "outputs/results/sensitivity_r
     }
     def _short_label(row):
         param = PARAM_ABBREV.get(row["parameter"], row["parameter"].replace("_", " "))
-        star = " ★" if row["is_primary"] else ""
+        star = " *" if row["is_primary"] else ""
         return f"{param} = {row['value']}{star}"
 
     df["label"] = df.apply(_short_label, axis=1)

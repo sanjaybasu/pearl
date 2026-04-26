@@ -15,6 +15,8 @@ Two modes:
 The tabular proxy captures all the algorithmic structure (IPTW weighting, group
 stratification, abstention) so the full pipeline can be tested without GPU.
 """
+import os
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from typing import Dict, List, Optional, Tuple
@@ -22,6 +24,14 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import log_loss
 import warnings
+
+# Default checkpoint location: notebooks/pearl/outputs/checkpoints/ relative to repo root.
+_PEARL_ROOT = Path(__file__).resolve().parents[1]
+_REPO_ROOT = _PEARL_ROOT.parents[1]
+DEFAULT_CHECKPOINT_DIR = str(Path(os.environ.get(
+    "PEARL_OUTPUT_BASE",
+    str(_REPO_ROOT / "notebooks" / "pearl" / "outputs"),
+)) / "checkpoints")
 warnings.filterwarnings("ignore")
 
 INTERVENTIONS = [
@@ -540,7 +550,7 @@ class TabularPEARL:
 
         confidence_note = ""
         if should_abstain:
-            confidence_note = f"\n⚠️ ABSTENTION: DPO margin ({margin:.3f}) below threshold ({self.abstention_threshold:.3f}). Recommend standard routing review."
+            confidence_note = f"\n[WARNING] ABSTENTION: DPO margin ({margin:.3f}) below threshold ({self.abstention_threshold:.3f}). Recommend standard routing review."
         else:
             # Map margin to qualitative confidence
             if margin > 1.0:
@@ -582,7 +592,7 @@ class LLMPEARLTrainer:
         lora_r: int = 64,
         lora_alpha: int = 128,
         beta: float = 0.1,
-        output_dir: str = "/Users/sanjaybasu/pearl/outputs/checkpoints",
+        output_dir: str = DEFAULT_CHECKPOINT_DIR,
         seed: int = 42,
     ):
         self.model_name = model_name

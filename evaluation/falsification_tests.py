@@ -517,7 +517,7 @@ class FalsificationTestSuite:
 
         all_pass = True
         for test_name, result in self.results.items():
-            status = "✓ PASS" if result.get("passes") else "✗ CONCERN"
+            status = "[OK] PASS" if result.get("passes") else "[FAIL] CONCERN"
             if result.get("passes") is None:
                 status = "? ERROR"
             else:

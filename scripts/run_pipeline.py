@@ -18,7 +18,23 @@ Sensitivity analysis:
 """
 import sys
 import os
-sys.path.insert(0, "/Users/sanjaybasu/pearl")
+from pathlib import Path
+
+# Add the package root (packaging/pearl) to sys.path so data/, models/, etc.
+# resolve regardless of the working directory the script is invoked from.
+_PEARL_ROOT = Path(__file__).resolve().parents[1]
+if str(_PEARL_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PEARL_ROOT))
+
+# Output directory for all pipeline artifacts (CSVs, JSONs, checkpoints, figures).
+# Defaults to notebooks/pearl/outputs/ at the repo root; override via PEARL_OUTPUT_BASE.
+_REPO_ROOT = _PEARL_ROOT.parents[1]
+DEFAULT_OUTPUT_BASE = Path(os.environ.get(
+    "PEARL_OUTPUT_BASE",
+    str(_REPO_ROOT / "notebooks" / "pearl" / "outputs"),
+))
+RESULTS_DIR = DEFAULT_OUTPUT_BASE / "results"
+RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 import numpy as np
 import pandas as pd
@@ -451,7 +467,7 @@ def run_phase_2(pop, rising_train, rising_test, phase0, phase1_results, verbose=
         print(f"                     Δ = {imi_behavioral_pt - imi_pearl_pt:.3f} "
               f"[95% CI: {reduction_ci_lo:.3f}, {reduction_ci_hi:.3f}]")
         print(f"    One-sided p:      {p_one_sided:.4f}  "
-              f"({'✓ SIGNIFICANT' if p_one_sided < 0.05 else '✗ not significant'} at α=0.05)")
+              f"({'[OK] SIGNIFICANT' if p_one_sided < 0.05 else '[FAIL] not significant'} at α=0.05)")
     else:
         print("  Could not compute bootstrap CI (missing behavioral or PEARL IMI)")
 
@@ -474,7 +490,7 @@ def run_phase_2(pop, rising_train, rising_test, phase0, phase1_results, verbose=
     print(f"  90% PI coverage: {coverage_check['empirical_coverage']:.1%} "
           f"(target 90%, gap={coverage_check['coverage_gap']:+.1%})")
     print(f"  Mean PI width:   {coverage_check['mean_interval_width']:.4f}")
-    print(f"  Adequate:        {'✓' if coverage_check['passes'] else '✗'}")
+    print(f"  Adequate:        {'[OK]' if coverage_check['passes'] else '[FAIL]'}")
 
     # Sensitivity analysis
     print("\nRunning sensitivity analysis...")
@@ -531,7 +547,7 @@ def run_phase_3_arena(pop, rising_train, verbose=True):
     )
     best_result, arena_df = arena.run(rising_train, pop.wpad_pairs, verbose=verbose)
 
-    output_path = "/Users/sanjaybasu/pearl/outputs/results/einstein_arena_results.json"
+    output_path = str(RESULTS_DIR / "einstein_arena_results.json")
     arena.save_results(output_path)
 
     return {"best_result": best_result, "arena_df": arena_df}
@@ -551,7 +567,7 @@ def save_paper_table(phase0, phase1, phase2, output_dir):
             "Policy_Value": f"{row['policy_value']:.4f}",
             "Policy_Value_95CI": f"[{row['policy_value_ci_lower']:.4f}, {row['policy_value_ci_upper']:.4f}]",
             "Rel_Improvement_pct": f"{row['relative_improvement_pct']:+.1f}%",
-            "ESS": f"{row['ess']:.0f} {'✓' if row['ess_adequate'] else '✗'}",
+            "ESS": f"{row['ess']:.0f} {'[OK]' if row['ess_adequate'] else '[FAIL]'}",
             "IMI": f"{imi:.3f}" if imi is not None else "N/A",
             "Coverage_Coeff": f"{row['coverage_coefficient']:.2f}",
         })
@@ -642,10 +658,10 @@ def run_multi_seed_stability(n_patients=8_000, seeds=(42, 123, 456, 789, 1000), 
                     if "direction_change" in phase2["sensitivity"].columns else 0
                 ),
             })
-            print(f"  ✓ IMI reduction = {bci.get('imi_reduction_point', float('nan')):.3f}, "
+            print(f"  [OK] IMI reduction = {bci.get('imi_reduction_point', float('nan')):.3f}, "
                   f"p = {bci.get('p_value_one_sided', float('nan')):.4f}")
         except Exception as e:
-            print(f"  ✗ Seed {seed} failed: {e}")
+            print(f"  [FAIL] Seed {seed} failed: {e}")
             seed_results.append({"seed": seed, "error": str(e)})
 
     if not seed_results:
@@ -665,7 +681,7 @@ def run_multi_seed_stability(n_patients=8_000, seeds=(42, 123, 456, 789, 1000), 
         print(f"  {col:<40}: {mu:.4f} ± {sd:.4f}")
 
     # Save
-    output_dir = "/Users/sanjaybasu/pearl/outputs/results"
+    output_dir = str(RESULTS_DIR)
     os.makedirs(output_dir, exist_ok=True)
     stability_path = f"{output_dir}/multi_seed_stability.csv"
     df.to_csv(stability_path, index=False)
@@ -784,7 +800,7 @@ def main():
         print("\nSkipping Einstein Arena (--skip_arena specified)")
 
     # Save results
-    output_dir = "/Users/sanjaybasu/pearl/outputs/results"
+    output_dir = str(RESULTS_DIR)
     table = save_paper_table(phase0, phase1, phase2, output_dir)
 
     # Save sensitivity results for figure generation
@@ -800,14 +816,14 @@ def main():
     print(f"{'='*70}")
 
     # Final summary
-    print("\n★ KEY RESULTS FOR PAPER:")
+    print("\n* KEY RESULTS FOR PAPER:")
     print(f"  [Train/test split: {len(rising_train):,} train / {len(rising_test):,} held-out test]")
     if not np.isnan(pop.ground_truth_imi):
         print(f"  Ground-truth IMI (behavioral policy): {pop.ground_truth_imi:.3f}")
     print(f"  Estimated IMI (behavioral policy):    {phase0['imi_result']['imi_point']:.3f}  [on held-out test]")
     print(f"  IMI 95% CI:                           [{phase0['imi_result']['imi_ci_lower']:.3f}, {phase0['imi_result']['imi_ci_upper']:.3f}]")
     print(f"  E-value (WPAD LATE):                  {phase0['imi_result']['e_value']:.2f}")
-    print(f"  ESS:                                  {phase0['imi_result']['ess']:.0f} {'✓' if phase0['imi_result']['ess_adequate'] else '✗'}")
+    print(f"  ESS:                                  {phase0['imi_result']['ess']:.0f} {'[OK]' if phase0['imi_result']['ess_adequate'] else '[FAIL]'}")
 
     # IMI reduction (primary result) — pick best PEARL variant by minimum IMI.
     imi_behavioral = phase2["imi_results"].get("Behavioral Policy", phase0["imi_result"]["imi_point"])
@@ -824,7 +840,7 @@ def main():
         oracle_gap = imi_oracle if imi_oracle is not None else 0
         oracle_reduction = 1 - (imi_pearl_best - oracle_gap) / (imi_behavioral - oracle_gap) \
                            if (imi_behavioral - oracle_gap) > 0 else 0
-        print(f"\n  ★ PRIMARY RESULT — INTERVENTION MISALIGNMENT REDUCTION:")
+        print(f"\n  * PRIMARY RESULT — INTERVENTION MISALIGNMENT REDUCTION:")
         print(f"    IMI (behavioral policy):      {imi_behavioral:.3f} ({imi_behavioral*100:.1f}%)")
         print(f"    IMI ({pearl_best_name}):  {imi_pearl_best:.3f} ({imi_pearl_best*100:.1f}%)")
         if imi_pearl_base is not None and pearl_best_name != "PEARL (base)":
@@ -837,11 +853,11 @@ def main():
     # Bootstrap CI + p-value
     bci = phase2.get("bootstrap_ci", {})
     if bci:
-        print(f"\n  ★ HYPOTHESIS TEST (one-sided bootstrap, N_boot=2000, held-out test):")
+        print(f"\n  * HYPOTHESIS TEST (one-sided bootstrap, N_boot=2000, held-out test):")
         print(f"    H0: IMI(PEARL) >= IMI(behavioral)  [PEARL doesn't reduce misalignment]")
         print(f"    IMI reduction = {bci['imi_reduction_point']:.3f} "
               f"[95% CI: {bci['imi_reduction_ci_lower']:.3f}, {bci['imi_reduction_ci_upper']:.3f}]")
-        sig_str = '✓ REJECTED (p<0.05)' if bci['significant'] else '✗ NOT rejected'
+        sig_str = '[OK] REJECTED (p<0.05)' if bci['significant'] else '[FAIL] NOT rejected'
         print(f"    p-value = {bci['p_value_one_sided']:.4f}  → H0 {sig_str}")
 
     drope_df = phase2["drope_comparison"]

@@ -681,7 +681,7 @@ class SensitivityAnalysis:
         print(f"{'Parameter':<25} {'Value':<12} {'Primary?':<10} {'IMI':<8} {'ΔΔ%':<8}")
         print("-"*70)
         for _, row in df.iterrows():
-            primary_flag = "★" if row["is_primary"] else " "
+            primary_flag = "*" if row["is_primary"] else " "
             print(f"{row['parameter']:<25} {str(row['value']):<12} {primary_flag:<10} "
                   f"{row['imi_estimate']:<8.4f} {row['relative_change_pct']:<8.1f}%")
         print("="*70 + "\n")
@@ -769,7 +769,7 @@ if __name__ == "__main__":
     print(f"\nConformal 90% PI coverage: {coverage_result['empirical_coverage']:.1%} "
           f"(target: {coverage_result['target_coverage']:.0%})")
     print(f"Mean PI width: {coverage_result['mean_interval_width']:.4f}")
-    print(f"Coverage adequate: {'✓' if coverage_result['passes'] else '✗'}")
+    print(f"Coverage adequate: {'[OK]' if coverage_result['passes'] else '[FAIL]'}")
 
     # Sensitivity analysis
     sensitivity = SensitivityAnalysis()

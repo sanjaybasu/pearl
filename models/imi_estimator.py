@@ -568,7 +568,7 @@ class IMIEstimator:
         print(f"  Manski bounds: [{result['imi_lower_manski']:.3f}, {result['imi_upper_manski']:.3f}]")
         print(f"  Coverage fraction: {result['coverage_fraction']:.1%} (positivity satisfied)")
         print(f"  E-value: {result['e_value']:.2f}")
-        print(f"  ESS: {result['ess']:.0f} {'✓' if result['ess_adequate'] else '✗ (below 500 threshold)'}")
+        print(f"  ESS: {result['ess']:.0f} {'[OK]' if result['ess_adequate'] else '[FAIL] (below 500 threshold)'}")
         print(f"\nIMI Decomposition:")
         print(f"  Demographic-IMI: {result['imi_demographic']:.3f} ({result['imi_demographic']*100:.1f}%)")
         print(f"  Clinical-IMI:    {result['imi_clinical']:.3f} ({result['imi_clinical']*100:.1f}%)")

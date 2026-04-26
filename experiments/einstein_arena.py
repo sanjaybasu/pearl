@@ -1,5 +1,8 @@
 """
-Einstein Arena: Adversarial Hyperparameter Optimization for PEARL
+Einstein Arena: Adversarial Hyperparameter Optimization for PEARL.
+
+Default output location: notebooks/pearl/outputs/results/einstein_arena_results.json
+(resolved relative to the package; override via PEARL_OUTPUT_BASE).
 
 Implements a multi-round adversarial optimization loop:
   1. Generate a population of candidate configurations
@@ -34,6 +37,8 @@ Adversarial critics (simulated reviewer attacks):
   C4 — "Clinical reviewer": test abstention rate and care plan quality
   C5 — "Stats reviewer": test CI width and sensitivity analysis stability
 """
+import os
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from typing import Dict, List, Optional, Tuple, Any
@@ -42,6 +47,14 @@ from itertools import product
 import json
 import time
 import warnings
+
+# Default output base: notebooks/pearl/outputs/ relative to repo root.
+_PEARL_ROOT = Path(__file__).resolve().parents[1]
+_REPO_ROOT = _PEARL_ROOT.parents[1]
+DEFAULT_RESULTS_DIR = Path(os.environ.get(
+    "PEARL_OUTPUT_BASE",
+    str(_REPO_ROOT / "notebooks" / "pearl" / "outputs"),
+)) / "results"
 warnings.filterwarnings("ignore")
 
 
@@ -511,7 +524,7 @@ class EinsteinArena:
                     print(f"         score={result.composite_score:.4f} | "
                           f"dr_ope={result.drope_improvement:.4f} | "
                           f"imi_red={result.imi_reduction:.4f} | "
-                          f"ess={result.ess:.0f} {'✓' if result.ess_adequate else '✗'} | "
+                          f"ess={result.ess:.0f} {'[OK]' if result.ess_adequate else '[FAIL]'} | "
                           f"critic={status}")
 
             generation_results.extend(gen_results)
@@ -563,7 +576,7 @@ class EinsteinArena:
         print("EINSTEIN ARENA FINAL REPORT")
         print("="*70)
 
-        print(f"\n★ BEST CONFIGURATION: {self.best_config.config_id}")
+        print(f"\n* BEST CONFIGURATION: {self.best_config.config_id}")
         print(f"  LoRA r={self.best_config.lora_r}, β={self.best_config.beta}, "
               f"T_min={self.best_config.t_min}d, WPAD={self.best_config.wpad_type}")
         print(f"  MoE K={self.best_config.top_k}, blend={self.best_config.moe_weight}, "
@@ -573,7 +586,7 @@ class EinsteinArena:
         print(f"    IMI reduction:      {self.best_result.imi_reduction:.4f}")
         print(f"    Equity-IMI gap:     {self.best_result.equity_imi_gap:.4f}")
         print(f"    ESS:                {self.best_result.ess:.0f} "
-              f"{'✓ (>500)' if self.best_result.ess_adequate else '✗ (<500)'}")
+              f"{'[OK] (>500)' if self.best_result.ess_adequate else '[FAIL] (<500)'}")
         print(f"    Abstention rate:    {self.best_result.abstention_rate:.1%}")
         print(f"    Composite score:    {self.best_result.composite_score:.4f}")
 
@@ -624,7 +637,8 @@ if __name__ == "__main__":
     )
 
     best_result, results_df = arena.run(rising, pop.wpad_pairs, verbose=True)
-    arena.save_results("/Users/sanjaybasu/pearl/outputs/results/einstein_arena_results.json")
+    DEFAULT_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    arena.save_results(str(DEFAULT_RESULTS_DIR / "einstein_arena_results.json"))
 
-    print(f"\n★ OPTIMAL CONFIG: {best_result.config.config_id}")
+    print(f"\n* OPTIMAL CONFIG: {best_result.config.config_id}")
     print(f"  Use these hyperparameters for the main PEARL paper results.")

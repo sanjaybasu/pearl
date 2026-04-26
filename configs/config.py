@@ -3,7 +3,20 @@ PEARL Configuration
 All tunable parameters in one place; referenced by all modules.
 """
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import List, Optional
+
+# Package root: packaging/pearl/
+_PEARL_ROOT = Path(__file__).resolve().parents[1]
+
+# Default output base: notebooks/pearl/outputs/ relative to repo root
+# (notebooks/ is the submission-artifact tree; packaging/ is the code tree).
+# Override via the PEARL_OUTPUT_BASE environment variable.
+import os as _os
+DEFAULT_OUTPUT_BASE = _os.environ.get(
+    "PEARL_OUTPUT_BASE",
+    str(_PEARL_ROOT.parents[1] / "notebooks" / "pearl" / "outputs"),
+)
 
 
 @dataclass
@@ -68,8 +81,8 @@ class TrainingConfig:
     ])
     # Abstention: DPO log-ratio margin below which PEARL defers
     abstention_threshold: float = 0.3  # tuned on calibration set
-    # Checkpointing
-    output_dir: str = "/Users/sanjaybasu/pearl/outputs/checkpoints"
+    # Checkpointing (resolved relative to package; override via PEARL_OUTPUT_BASE)
+    output_dir: str = field(default_factory=lambda: str(Path(DEFAULT_OUTPUT_BASE) / "checkpoints"))
     eval_steps: int = 100
     save_steps: int = 500
 
@@ -129,7 +142,7 @@ class PEARLConfig:
     waymark_data_path: Optional[str] = None  # set if running on Waymark infra
     mimic_note_path: Optional[str] = None
     synthetic_demo: bool = True  # use synthetic data if no real data available
-    output_base: str = "/Users/sanjaybasu/pearl/outputs"
+    output_base: str = field(default_factory=lambda: DEFAULT_OUTPUT_BASE)
 
 
 # Singleton default config

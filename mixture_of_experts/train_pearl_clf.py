@@ -296,7 +296,7 @@ def main() -> None:
         print(f"    PEARL_INTERVENTIONS: {PEARL_INTERVENTIONS}")
         print("  PEARLScorer indexes by PEARL_INTERVENTIONS.index() — mismatch will cause wrong scores.")
     else:
-        print("  ✓ clf.classes_ matches PEARL_INTERVENTIONS exactly")
+        print("  [OK] clf.classes_ matches PEARL_INTERVENTIONS exactly")
 
     # 5-fold cross-validation accuracy (unweighted — sample_weight not
     # supported in cross_val_score fit_params for all sklearn versions)
