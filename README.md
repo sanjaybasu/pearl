@@ -1,6 +1,6 @@
 # PEARL: Policy Evolution through Aligned Retrospective Learning
 
-**Quantifying intervention misalignment in ambulatory care management with within-patient natural experiments**
+**Measuring and reducing intervention misalignment in next best action selection for care management: a within-patient natural experiment**
 
 Basu S, Sheth P, Patel S. Manuscript under review, 2026.
 
@@ -161,8 +161,8 @@ Results of all 20 sensitivity analyses are reported in the accompanying manuscri
 
 ```bibtex
 @article{basu2026pearl,
-  title   = {Quantifying intervention misalignment in ambulatory care management
-             with within-patient natural experiments},
+  title   = {Measuring and reducing intervention misalignment in next best action
+             selection for care management: a within-patient natural experiment},
   author  = {Basu, Sanjay and Sheth, Parth and Patel, Sadiq},
   year    = {2026},
   note    = {Manuscript under review}
