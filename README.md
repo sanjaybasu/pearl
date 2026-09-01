@@ -173,6 +173,6 @@ Results of all 20 sensitivity analyses are reported in the accompanying manuscri
 
 ## License
 
-Apache License 2.0.
+MIT License.
 
 Proprietary ACO care management data used in the manuscript is not included. A data use agreement template for ACO replication is available from the corresponding author (sanjay.basu@ucsf.edu).

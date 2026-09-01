@@ -134,7 +134,7 @@ Eight published comparators are included:
 
 ## License
 
-Apache License 2.0. See LICENSE for details.
+MIT License. See LICENSE for details.
 
 Data use: The proprietary ACO care management data used in the manuscript
 is available under a Waymark data use agreement. Contact
