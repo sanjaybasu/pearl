@@ -7,12 +7,13 @@ Steps:
   3. Add page-break between manuscript and supplement
   4. Run pandoc + xelatex to produce PDF
 """
+import os
 import subprocess
 import sys
 import re
 from pathlib import Path
 
-PEARL_DIR  = Path("/Users/sanjaybasu/waymark-local/notebooks/pearl")
+PEARL_DIR  = Path(os.environ.get("PEARL_NOTEBOOKS_DIR", str(Path(__file__).resolve().parents[1] / "notebooks" / "pearl")))
 FIGS_DIR   = PEARL_DIR / "figures_png"
 MS_SRC     = PEARL_DIR / "manuscript" / "PEARL_manuscript_v3.md"
 SUP_SRC    = PEARL_DIR / "supplement" / "PEARL_supplement_v3.md"

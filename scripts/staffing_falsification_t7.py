@@ -14,6 +14,7 @@ the same information T3 targets (does an administrative/organizational
 signal predict something that should only reflect patient selection) and
 has real variation in this sample.
 """
+import os
 import sys
 import warnings
 from pathlib import Path
@@ -33,8 +34,10 @@ from sklearn.preprocessing import StandardScaler
 
 from revision_analyses import disable_unused_crossval, load_eligibility_attributes
 
-STAFF_PATH = Path("/Users/sanjaybasu/waymark-local/data/real_inputs/"
-                   "Master Care Delivery Staffing Document 2023-2025 - Sheet1.csv")
+STAFF_PATH = Path(os.environ.get(
+    "PEARL_STAFFING_PATH",
+    str(Path(os.environ.get("PEARL_DATA_PATH", str(_ROOT / "data" / "real_inputs"))) / "care_delivery_staffing.csv"),
+))
 N_FALSIFICATION_TESTS = 7  # T1-T6 pre-specified, T7 post hoc; Bonferroni across all 7
 
 

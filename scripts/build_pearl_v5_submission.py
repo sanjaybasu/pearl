@@ -18,9 +18,9 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from docx.enum.text import WD_LINE_SPACING, WD_ALIGN_PARAGRAPH
 
-PEARL_DIR = Path("/Users/sanjaybasu/waymark-local/notebooks/pearl")
+PEARL_DIR = Path(os.environ.get("PEARL_NOTEBOOKS_DIR", str(Path(__file__).resolve().parents[1] / "notebooks" / "pearl")))
 REV_DIR = PEARL_DIR / "revision_1"
-FIGS_DIR = PEARL_DIR / "figures_png"
+FIGS_DIR = REV_DIR / "figures_png"
 OUTPUT_DIR = REV_DIR
 
 DOCX_FILES = [
@@ -28,16 +28,17 @@ DOCX_FILES = [
         "src": REV_DIR / "manuscript" / "PEARL_manuscript_v5.md",
         "out": OUTPUT_DIR / "PEARL_manuscript_v5.docx",
         "figures": {
-            "Figure 1.": FIGS_DIR / "fig1_pipeline.png",
-            "Figure 2.": FIGS_DIR / "fig3_evaluator_dependence.png",
+            "Figure 1.": FIGS_DIR / "main_fig1_pipeline.png",
+            "Figure 2.": FIGS_DIR / "main_fig2_safeguards.png",
         },
     },
     {
         "src": REV_DIR / "supplement" / "PEARL_supplement_v5.md",
         "out": OUTPUT_DIR / "PEARL_supplement_v5.docx",
         "figures": {
-            "Appendix Figure 1.": FIGS_DIR / "fig_patient_flow.png",
-            "Appendix Figure 2.": FIGS_DIR / "fig4_camden.png",
+            "Appendix Figure 1.": FIGS_DIR / "appendix_fig1_patient_flow.png",
+            "Appendix Figure 2.": FIGS_DIR / "appendix_fig2_camden.png",
+            "Appendix Figure 3.": FIGS_DIR / "appendix_fig3_decision_curve.png",
         },
     },
 ]
@@ -158,16 +159,23 @@ def insert_image_after_para(doc: Document, para_index: int, img_path: Path) -> N
 def inject_figures(doc: Document, figures: dict) -> None:
     if not figures:
         return
-    injections = []
+    # A table of contents or an earlier per-analysis section can each contain
+    # a short line starting with the same "Appendix Figure N." prefix as the
+    # actual legend paragraph; only the LAST such match in the document is
+    # the real legend, so keep the latest match per figure, not every match.
+    last_match = {}
     for i, para in enumerate(doc.paragraphs):
         text = get_para_text(para).strip()
         for legend_start, fig_path in figures.items():
             if text.startswith(legend_start) and fig_path.exists():
-                injections.append((i, fig_path, legend_start))
-                break
-    if not injections:
+                last_match[legend_start] = (i, fig_path)
+    if not last_match:
         print("  WARNING: No figure legend paragraphs found — figures not injected")
         return
+    injections = sorted(
+        ((i, fig_path, legend) for legend, (i, fig_path) in last_match.items()),
+        key=lambda x: x[0],
+    )
     offset = 0
     for para_idx, fig_path, legend in injections:
         insert_image_after_para(doc, para_idx + offset, fig_path)

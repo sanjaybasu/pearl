@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+title: "PEARL: code for measuring and evaluating intervention misalignment in next best action selection for care management"
+message: "If you use this software, please cite it using the metadata below."
+type: software
+version: "2.0.0"
+date-released: "2026-11-20"
+license: MIT
+repository-code: "https://github.com/sanjaybasu/pearl"
+doi: "10.5281/zenodo.22236900"
+authors:
+  - family-names: Basu
+    given-names: Sanjay
+    affiliation: "Department of Medicine, University of California San Francisco, San Francisco, CA, USA; Waymark, San Francisco, CA, USA"
+    email: sanjay.basu@ucsf.edu
+  - family-names: Sheth
+    given-names: Parth
+    affiliation: "Waymark, San Francisco, CA, USA; School of Social Policy and Practice, University of Pennsylvania, Philadelphia, PA, USA"
+  - family-names: Patel
+    given-names: Sadiq
+    affiliation: "Waymark, San Francisco, CA, USA; School of Social Policy and Practice, University of Pennsylvania, Philadelphia, PA, USA"
+keywords:
+  - care management
+  - next best action
+  - offline policy evaluation
+  - intervention misalignment
+  - Medicaid
+  - clinical decision support

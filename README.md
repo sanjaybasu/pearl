@@ -1,159 +1,91 @@
 # PEARL: Policy Evolution through Aligned Retrospective Learning
 
-**Measuring and reducing intervention misalignment in next best action selection for care management: a within-patient natural experiment**
+**Measuring and evaluating intervention misalignment in next best action selection for care management: a retrospective cohort study**
 
-Basu S, Sheth P, Patel S. Manuscript under review, 2026.
+Basu S, Sheth P, Patel S. Under review, 2026.
 
-The Intervention Misalignment Index (IMI) is the fraction of patients assigned a care management intervention type for which a better-matched alternative exists, identifiable from within-patient natural experiments created by staggered ACO onboarding logistics (Within-Patient Administrative Discontinuity, WPAD). Among 34,971 rising-risk Medicaid patients, IMI under behavioral routing is 27.0%; the within-patient causal-identification signal — not the preference-optimization architecture — drives intervention-matching improvement.
-
----
-
-## What PEARL does
-
-Current ACO care management programs route patients to interventions using risk scores — they identify *who* needs care but not *which* care. PEARL learns which intervention type produces better outcomes for each patient profile, using a causal identification strategy that does not require population-level unconfoundedness assumptions.
-
-Results are reported in the accompanying manuscript (under review). This repository provides the complete code pipeline for reproducing the analysis on ACO care management data or running the synthetic demonstration.
+- **Pre-registration (OSF):** [https://doi.org/10.17605/OSF.IO/D69M2](https://doi.org/10.17605/OSF.IO/D69M2)
+- **Software archive (Zenodo, all versions):** [https://doi.org/10.5281/zenodo.22236900](https://doi.org/10.5281/zenodo.22236900)
+- **License:** MIT (code only; zero patient data)
 
 ---
 
-## Method overview
+## Overview
 
-### 1. WPAD causal identification
+Care managers routinely choose one next best action for Medicaid patients with concurrent chronic, behavioral, medication, and social needs, yet standard risk scores indicate *who* needs care without indicating *which* intervention to prioritize. Offline evaluation of care-management routing from routinely collected data is vulnerable to four failure modes: proxy action labels inferred from clinical flags, acute-event referral confounding by indication, self-evaluation and extrapolation beyond observed support, and pre/post enrollment selection artifacts.
 
-Staggered ACO onboarding schedules create within-patient natural experiments: patients enrolled early (ON-window) are compared to the same patients before enrollment (OFF-window). This Within-Patient Administrative Discontinuity (WPAD) design requires only administrative exogeneity — that onboarding order is driven by operational logistics, not patient health status — a weaker assumption than population-level unconfoundedness.
+This repository implements **PEARL (Policy Evolution through Aligned Retrospective Learning)** together with a **four-safeguard offline routing and audit framework**:
 
-Six pre-specified falsification tests (T1–T6) assess administrative exogeneity. T1–T4 pass; T5 triggers restriction of the primary analysis to Type 1 (ACO onboarding) pairs.
-
-### 2. IPTW-DPO preference optimization
-
-PEARL trains a tabular preference model using IPTW-weighted Direct Preference Optimization on WPAD preference pairs. The DPO loss is equivalent to doubly robust off-policy optimization at the behavioral policy initialization:
-
-- **Stage 1**: Demographic-stratified IPTW upsampling (equal group representation per batch)
-- **Stage 2**: Per-group DPO loss with equal group weights (group-stratified fairness constraint)
-- **Abstention**: PEARL defers to behavioral routing when the DPO log-ratio margin < τ
-
-### 3. DR-OPE evaluation
-
-Policy value estimated using the Marginalized DR estimator. Lower values = fewer predicted 90-day acute care events. Paired bootstrap (2,000 resamples) provides confidence intervals and hypothesis tests.
-
-### 4. Intervention Misalignment Index (IMI)
-
-IMI is the fraction of patients for whom the behavioral routing policy assigns a care management type for which a better-matched alternative exists by ≥ 2 percentage points in predicted acute care event probability:
-
-$$\text{IMI}(\pi_b) = \mathbb{E}_i\!\left[\mathbf{1}\!\left(\exists\, a \neq A_i : \hat{\mu}_{DR}(X_i,\, a) < \hat{\mu}_{DR}(X_i,\, A_i) - \varepsilon\right)\right]$$
-
-IMI is decomposed into marginal demographic-IMI and clinical-IMI components.
+1. **Action-ascertainment validation and covariate-overlap auditing:** Validates inferred clinical-flag heuristics against documented care-plan goals and completed-encounter clinician disciplines, and quantifies five-fold cross-validated multinomial logistic and nonlinear tree predictability to separate genuine treatment overlap from propensity-model smoothing.
+2. **Daily pre-action acute-care recency adjustment and strictly pre-index time-stamped predictor sensitivity:** Adjusts for daily pre-index acute events (7, 14, 30, and 90 days plus prior 90-day inpatient stays) and verifies robustness when all cross-sectional snapshot flags are omitted.
+3. **Explicit separation of policy safeguards:** Fits all propensity models, $M = 10$ without-replacement 80%-subsample inverse-probability-weighted gradient-boosted ensembles, nested 70/30 uncertainty-penalty ($\lambda$) tuning, and independent evaluators (200-tree random forest and L2-penalized logistic regression) strictly on training splits, isolating support restriction, the 2 percentage-point switching margin ($\varepsilon = 0.02$), uncertainty penalization ($\lambda \in \{0, 0.5, 1.0, 2.0\}$), and independent evaluation alongside switched-patient nonlinear propensity and effective sample size diagnostics.
+4. **End-to-end Bayesian bootstrap uncertainty and matched-capacity case-review benchmarking:** Propagates estimation, selection, and sampling uncertainty across $B = 200$ Rubin Bayesian bootstrap replicates with Efron bias-corrected 95% confidence intervals, and benchmarks the misalignment flag against both existing rising-risk scores and calibrated baseline acute-care risk at exact matched review capacity.
 
 ---
 
-## Repository structure
+## Repository Structure
 
-```
+```text
 pearl/
 ├── configs/
-│   └── config.py                 # Hyperparameters and pipeline settings
+│   └── config.py                        # Shared pipeline defaults and seeds
 ├── data/
-│   ├── extract_wpad.py           # WPAD pair construction (Algorithm 1; requires ACO data)
-│   └── synthetic_generator.py   # Synthetic data generator (no DUA required)
+│   ├── extract_wpad.py                  # Cohort builder and DUA-governed parquet schema
+│   └── synthetic_generator.py           # Legacy synthetic data generator (zero PHI)
 ├── evaluation/
-│   ├── drope_evaluator.py        # DR-OPE and DM policy evaluation; paired bootstrap
-│   └── falsification_tests.py   # T1–T6 WPAD administrative exogeneity tests
+│   ├── drope_evaluator.py               # Direct-method and doubly robust policy evaluation
+│   └── falsification_tests.py           # Pre-registered falsification tests (T1–T6)
 ├── models/
-│   ├── pearl_dpo.py              # Tabular IPTW-DPO training (Algorithm 2)
-│   ├── imi_estimator.py          # IMI estimation, decomposition, E-value
-│   └── comparators.py           # C1–C8 published comparator implementations
-├── mixture_of_experts/
-│   └── moe_router.py             # MoE Router: per-intervention expert + softmax gate
-├── experiments/
-│   └── einstein_arena.py         # Adversarial critique framework for design review
+│   ├── imi_estimator.py                 # Misalignment estimator and Camden illustrative analog
+│   ├── pearl_dpo.py                     # Pre-registered preference-optimization comparator
+│   └── comparators.py                   # Baseline comparator implementations
 ├── scripts/
-│   ├── run_pipeline.py           # End-to-end pipeline (--synthetic or --waymark)
-│   ├── generate_figures.py       # Reproduce manuscript figures from results CSV
-│   ├── run_sensitivity.sh        # Run all 20 pre-specified sensitivity analyses
-│   ├── build_pearl_pdf.py        # Build combined manuscript+supplement PDF (pandoc+xelatex)
-│   └── build_pearl_docx.py      # Build DOCX submission files (pandoc+python-docx)
-├── notebooks/
-│   └── pearl_demo.ipynb          # Full pipeline demo on synthetic data (~2 min, CPU)
-└── packaging/
-    ├── README.md
-    ├── requirements.txt
-    └── setup.py
+│   ├── run_v6_synthetic_demo.py         # Fast CPU synthetic reproduction of v6 leak-free pipeline
+│   ├── pearl_v6_revision.py             # Main leak-free multi-cohort analysis and bootstrap pipeline
+│   ├── pearl_v6_extended.py             # Daily acute-recency, strictly pre-index, and Camden analyses
+│   ├── make_v6_figures.py               # Data-driven figure generation from canonical JSON/CSVs
+│   ├── staffing_falsification_t7.py     # Staffing-capacity falsification test (T7)
+│   ├── build_svi.py                     # Public CDC/ATSDR SVI 2022 ZCTA crosswalk builder
+│   ├── revision_analyses.py             # Shared covariate, calibration, and eligibility utilities
+│   └── run_pipeline.py                  # Legacy synthetic/real pipeline entrypoint
+├── CITATION.cff                         # Machine-readable citation metadata
+├── LICENSE                              # MIT License
+├── REPRODUCIBILITY.md                   # Environment specification and verification guide
+└── requirements.txt                     # Python package requirements
 ```
 
 ---
 
-## Quickstart (synthetic data — no data use agreement required)
+## Quickstart (Synthetic Data — Zero Patient Data Required)
 
 ```bash
-# Install dependencies
 pip install -r requirements.txt
 
-# Run full pipeline on synthetic data (~2 min on CPU)
-python scripts/run_pipeline.py --synthetic --n_patients 50000
-
-# Or open the notebook demo
-jupyter notebook notebooks/pearl_demo.ipynb
+# Run the v6 leak-free pipeline on synthetic 4-track care-management data (~15-25s on CPU)
+python scripts/run_v6_synthetic_demo.py --n_patients 2500 --n_boot 20
 ```
 
-The synthetic pipeline runs WPAD pair construction, falsification tests T1–T6, IMI estimation, IPTW-DPO training, DR-OPE evaluation of all 13 policies, and sensitivity analysis — producing the same output structure as the real-data run.
-
-## Reproducibility
-
-All pipeline outputs (CSVs, JSONs, checkpoints, figures) are written to `notebooks/pearl/outputs/` at the repository root by default. Override the output location via the `PEARL_OUTPUT_BASE` environment variable.
-
-```bash
-# Use a custom output directory
-PEARL_OUTPUT_BASE=/tmp/pearl_run python scripts/run_pipeline.py --synthetic
-```
-
-The full pipeline is deterministic given a fixed seed (default 42 in `configs/config.py`). Bootstrap confidence intervals use a separate seed via `--seed` flag.
-
-A CodeOcean compute capsule reproducing the synthetic-data pipeline end-to-end (DOI to be assigned on acceptance) provides a public, browser-runnable verification environment that requires no DUA.
+The synthetic demonstration executes the exact `pearl_v6_revision.analyze_cohort` core (five-fold covariate determinism audit, training-only propensity and $M = 10$ subsample ensemble fitting, nested $\lambda$ selection, independent random forest and penalized logistic evaluation, component-separated ablations, switched-patient support diagnostics, end-to-end Bayesian bootstrap 95% CIs, and matched-capacity decision-curve benchmarking) without requiring any restricted health data.
 
 ---
 
-## Running on ACO data
+## Running on Restricted Operational Data (Requires DUA)
 
-Requires a data use agreement. Set environment variable `WAYMARK_DATA_PATH` to the directory containing the required parquets, then:
-
-```bash
-python scripts/run_pipeline.py --waymark
-```
-
-Expected inputs (described in `data/extract_wpad.py`):
-- `signal_risk_latest.parquet` — risk scores and condition flags
-- `clinical_summary.parquet` — Charlson index, diagnoses
-- `pharmacy_summary.parquet` — medication fill records
-- `outcomes_monthly.parquet` — 90-day acute care events
-- `member_status.parquet` — enrollment and onboarding dates
-- `hospital_visits.parquet` — inpatient and ED visit records
-
----
-
-## Comparators (pre-registered)
-
-| ID | Method | Citation |
-|----|--------|----------|
-| C1 | LACE Index | van Walraven et al., *CMAJ* 2010 |
-| C2 | HOSPITAL Score | Donzé et al., *JAMA Intern Med* 2013 |
-| C3 | XGBoost readmission prediction | — |
-| C4 | Behavioral Cloning SFT | Ablation: DPO vs. supervised imitation |
-| C5 | Observational DPO | Ablation: WPAD identification vs. naive DPO |
-| C6 | Causal Forest CATE | Wager & Athey, *J Am Stat Assoc* 2018 |
-| C7 | Decision Transformer | Chen et al., *NeurIPS* 2021 |
-| C8 | Conservative Q-Learning (CQL) | Kumar et al., *NeurIPS* 2020 |
-
----
-
-## Sensitivity analyses
-
-Twenty pre-specified analyses vary seven parameters (window length, IPTW clip, DPO β, outcome window, trajectory adjustment, WPAD type restriction, IMI threshold). Run all:
+Patient-level Medicaid data cannot be shared publicly under privacy and data-use restrictions. With authorized local extracts matching the schema in `data/extract_wpad.py`, set environment variables and run:
 
 ```bash
-bash scripts/run_sensitivity.sh
+export PEARL_DATA_PATH=/path/to/real_inputs
+export PEARL_PROCESSED_PATH=/path/to/processed
+export PEARL_SVI_PATH=/path/to/processed/svi_by_zip.parquet
+export PEARL_OUTPUT_BASE=/path/to/outputs
+export PEARL_FIGURES_DIR=/path/to/figures_png
+
+python scripts/pearl_v6_revision.py
+python scripts/pearl_v6_extended.py
+python scripts/make_v6_figures.py
 ```
 
-Results of all 20 sensitivity analyses are reported in the accompanying manuscript. The ε = 0.01 IMI threshold analysis is pre-specified as a major sensitivity finding.
+See `REPRODUCIBILITY.md` for pinned package versions (`Python 3.12.2`, `scikit-learn 1.6.1`, `NumPy 1.26.4`, `pandas 2.2.2`, `SciPy 1.14.1`) and input schema details.
 
 ---
 
@@ -161,18 +93,14 @@ Results of all 20 sensitivity analyses are reported in the accompanying manuscri
 
 ```bibtex
 @article{basu2026pearl,
-  title   = {Measuring and reducing intervention misalignment in next best action
-             selection for care management: a within-patient natural experiment},
+  title   = {Measuring and evaluating intervention misalignment in next best action
+             selection for care management: a retrospective cohort study},
   author  = {Basu, Sanjay and Sheth, Parth and Patel, Sadiq},
   year    = {2026},
-  note    = {Manuscript under review}
+  note    = {Under review}
 }
 ```
 
----
+## License and Data Governance
 
-## License
-
-MIT License.
-
-Proprietary ACO care management data used in the manuscript is not included. A data use agreement template for ACO replication is available from the corresponding author (sanjay.basu@ucsf.edu).
+Code is released under the MIT License (`LICENSE`). This repository contains source code and synthetic demonstrations only; no patient data, model binaries fitted to patient data, or individual-level outputs are included. For data-use inquiries, contact the corresponding author (`sanjay.basu@ucsf.edu`).

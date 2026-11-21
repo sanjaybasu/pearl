@@ -57,8 +57,8 @@ _REPO = _ROOT.parents[1]
 OUT = Path(os.environ.get("PEARL_OUTPUT_BASE",
                           str(_REPO / "notebooks" / "pearl" / "outputs"))) / "results"
 OUT.mkdir(parents=True, exist_ok=True)
-SVI_PATH = Path("/Users/sanjaybasu/waymark-local/data/processed/svi_by_zip.parquet")
-RAW = Path("/Users/sanjaybasu/waymark-local/data/real_inputs")
+SVI_PATH = Path(os.environ.get("PEARL_SVI_PATH", str(_ROOT / "data" / "processed" / "svi_by_zip.parquet")))
+RAW = Path(os.environ.get("PEARL_DATA_PATH", str(_ROOT / "data" / "real_inputs")))
 
 
 # ─────────────────────────────────────────────────────────────────────────────

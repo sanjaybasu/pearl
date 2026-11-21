@@ -1,5 +1,5 @@
 """
-PEARL Revision Analyses (Scientific Reports, submission 92ef2ac1)
+PEARL Revision Analyses (peer review)
 
 Adds the analyses requested by Reviewer 1 and Reviewer 2 that the primary
 pipeline does not produce. Run AFTER scripts/run_pipeline.py --waymark.
@@ -47,7 +47,7 @@ OUTPUT_BASE = Path(os.environ.get(
 RESULTS_DIR = OUTPUT_BASE / "results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
-RAW_DIR = "/Users/sanjaybasu/waymark-local/data/real_inputs"
+RAW_DIR = os.environ.get("PEARL_DATA_PATH", str(_PEARL_ROOT / "data" / "real_inputs"))
 
 INTERVENTIONS = [
     "care_access", "clinical_other", "diabetes", "financial_benefits", "food_security",

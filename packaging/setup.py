@@ -1,12 +1,8 @@
 """
-Setup script for the PEARL care management AI package.
+Setup script for the PEARL care management offline routing and audit package.
 
-PEARL: Policy Evolution through Aligned Retrospective Learning
-Next best action selection for rising-risk ACO care management.
-
-Basu S, et al. PEARL: AI-Guided Next Best Action Selection for
-Rising-Risk Medicaid ACO Care Management.
-Lancet Digital Health, 2026. [In submission]
+PEARL: Policy Evolution through Aligned Retrospective Learning.
+Basu S, Sheth P, Patel S. Under review, 2026.
 """
 from setuptools import setup, find_packages
 
@@ -18,37 +14,24 @@ with open("../requirements.txt") as f:
 
 setup(
     name="pearl-care-management",
-    version="1.0.0",
+    version="2.0.0",
     description=(
         "PEARL: Policy Evolution through Aligned Retrospective Learning — "
-        "next best action selection for ACO care management using "
-        "within-patient causal identification and tabular IPTW-DPO."
+        "four-safeguard offline routing and audit framework for care management."
     ),
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     author="Sanjay Basu",
-    author_email="sanjaybasu@waymark.com",
+    author_email="sanjay.basu@ucsf.edu",
     url="https://github.com/sanjaybasu/pearl",
     license="MIT",
     packages=find_packages(where=".."),
     package_dir={"": ".."},
     python_requires=">=3.10",
     install_requires=requirements,
-    extras_require={
-        "notebook": [
-            "jupyter>=1.0",
-            "ipykernel>=6.0",
-        ],
-        "dev": [
-            "pytest>=7.0",
-            "pytest-cov>=4.0",
-            "black>=23.0",
-            "ruff>=0.1",
-        ],
-    },
     entry_points={
         "console_scripts": [
-            "pearl-pipeline=scripts.run_pipeline:main",
+            "pearl-synthetic-demo=scripts.run_v6_synthetic_demo:main",
         ],
     },
     classifiers=[
@@ -59,12 +42,13 @@ setup(
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Topic :: Scientific/Engineering :: Medical Science Apps.",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
     keywords=[
-        "care management", "next best action", "reinforcement learning",
-        "DPO", "causal inference", "Medicaid", "ACO", "health equity",
-        "intervention misalignment", "WPAD",
+        "care management", "next best action", "offline policy evaluation",
+        "causal inference", "Medicaid", "intervention misalignment",
+        "clinical decision support",
     ],
 )

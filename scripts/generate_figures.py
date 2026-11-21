@@ -493,7 +493,7 @@ def fig_patient_flow(outpath: str) -> None:
 
 # ── Figure 1: PEARL Pipeline Overview (2-panel schematic) ─────────────────────
 def fig_pipeline_overview(outpath: str) -> None:
-    """2-panel PEARL pipeline schematic for Lancet Digital Health.
+    """2-panel PEARL pipeline schematic.
 
     Panel A: WPAD natural experiment — staggered ACO onboarding creates
              exogenous ON/OFF windows within the same patient.

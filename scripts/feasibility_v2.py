@@ -7,6 +7,7 @@ cohort large enough and well enough overlapped to estimate action-specific
 contrasts? Reports cohort size, action distribution, per-action event counts,
 propensity overlap, and contact volume.
 """
+import os
 import sys
 from pathlib import Path
 
@@ -16,7 +17,7 @@ sys.path.insert(0, str(_ROOT))
 import numpy as np
 import pandas as pd
 
-RAW = "/Users/sanjaybasu/waymark-local/data/real_inputs"
+RAW = os.environ.get("PEARL_DATA_PATH", str(_ROOT / "data" / "real_inputs"))
 
 from data.extract_wpad import build_waymark_population, GOAL_MAP
 

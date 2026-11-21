@@ -7,3 +7,34 @@ dist/
 build/
 .env
 .ipynb_checkpoints/
+
+# Exclude all patient data, derived datasets, model binaries, and output artifacts (code-only repo)
+*.csv
+*.tsv
+*.parquet
+*.feather
+*.jsonl
+*.joblib
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.npy
+*.npz
+*.log
+*.bak
+*.docx
+*.pdf
+*.png
+data/real_inputs/
+data/processed/
+data/external/
+outputs/
+figures_png/
+notebooks/pearl/outputs/
+
+# Local manuscript-packaging and email utilities (keep local, do not publish)
+scripts/email_*.py
+scripts/build_pearl_v6_submission.py
+scripts/build_v6_tracked_changes.py
+scripts/build_tracked_changes.py

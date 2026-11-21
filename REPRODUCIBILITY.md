@@ -1,141 +1,80 @@
 # PEARL — Reproducibility Guide
 
-This document specifies how the PEARL analysis is made reproducible for an
-external auditor. Three levels of reproducibility are supported:
+This guide specifies how to verify and reproduce the PEARL v6 four-safeguard offline routing and audit pipeline.
 
-1. **Synthetic-data demonstration** — public, requires no DUA. Reproduces the
-   full pipeline structure, falsification tests, IMI estimation, training, and
-   evaluation on synthetic patients with known ground-truth IMI.
-2. **CodeOcean compute capsule** — browser-runnable verification environment
-   wrapping the synthetic-data demonstration. DOI to be assigned on acceptance.
-3. **Real-data replication** — requires a data use agreement (DUA) with an ACO
-   that has the schema described in `data/extract_wpad.py`. The DUA template is
-   available from the corresponding author.
+## 1. Software Environment
 
-## Determinism
+Canonical analyses were executed in:
 
-- All random seeds default to 42 (`configs/config.py` `seed`, plus per-method
-  seeds in `data/extract_wpad.py`, `data/synthetic_generator.py`,
-  `models/imi_estimator.py`, `evaluation/drope_evaluator.py`).
-- Bootstrap iterations use independent seeds derived from the master seed.
-- The 80/20 train/test split uses `random_state=42` in `train_test_split`.
-- Given identical inputs and seed, the pipeline is bit-for-bit reproducible
-  across runs on the same Python/NumPy/scikit-learn versions specified in
-  `requirements.txt`.
+- **Python:** 3.12.2
+- **scikit-learn:** 1.6.1
+- **NumPy:** 1.26.4
+- **pandas:** 2.2.2
+- **SciPy:** 1.14.1
+- **matplotlib:** 3.9+
+- **Random seed:** fixed at `42` throughout (total real-data runtime across all cohorts and $B = 200$ end-to-end Bayesian bootstrap replicates: ~19 minutes on a 12-core Apple silicon workstation)
 
-## Output paths
-
-All pipeline outputs default to `notebooks/pearl/outputs/` at the repository
-root. Override via the `PEARL_OUTPUT_BASE` environment variable:
+Install dependencies:
 
 ```bash
-PEARL_OUTPUT_BASE=/tmp/pearl_run python scripts/run_pipeline.py --synthetic
+pip install -r requirements.txt
 ```
 
-Output structure:
+## 2. Public Synthetic-Data Verification (Zero Patient Data)
 
-```
-notebooks/pearl/outputs/
-├── results/
-│   ├── main_results_table.csv       # 13-policy DR-OPE + IMI comparison
-│   ├── sensitivity_results.csv      # 20 pre-specified sensitivity analyses
-│   └── einstein_arena_results.json  # hyperparameter search results (if enabled)
-├── checkpoints/
-│   └── *.pkl                        # trained model artifacts (per seed)
-└── figures/
-    └── fig*.pdf                     # manuscript figures
-```
-
-## Verification commands
+No data-use agreement is required to verify the complete leak-free estimation, component separation, switched-patient support diagnostics, end-to-end Bayesian bootstrap inference, and matched-capacity decision-curve benchmarking:
 
 ```bash
-# (1) Synthetic-data demonstration (no DUA, ~2 minutes on CPU)
-python scripts/run_pipeline.py --synthetic --n_patients 50000
-
-# (2) Verify outputs land in notebooks/pearl/outputs/results/
-ls notebooks/pearl/outputs/results/
-
-# (3) Reproduce manuscript figures from the canonical CSVs
-python scripts/generate_figures.py
-
-# (4) Run all 20 pre-specified sensitivity analyses
-bash scripts/run_sensitivity.sh
+python scripts/run_v6_synthetic_demo.py --n_patients 2500 --n_boot 20
 ```
 
-## Software environment
+Optional JSON output:
 
-Pinned versions in `requirements.txt`:
+```bash
+python scripts/run_v6_synthetic_demo.py --n_patients 2500 --n_boot 20 --out /tmp/pearl_synth_summary.json
+```
 
-- Python ≥ 3.10
-- pandas ≥ 2.0
-- numpy ≥ 1.24
-- scikit-learn ≥ 1.3
-- scipy ≥ 1.11
-- statsmodels ≥ 0.14
-- matplotlib ≥ 3.7
-- xgboost ≥ 1.7
-- lightgbm ≥ 4.0
+## 3. Authorized Real-Data Replication (Requires DUA)
 
-A `Dockerfile` and `environment.yml` snapshot for the CodeOcean capsule will be
-released on acceptance.
+Patient-level Medicaid data cannot be shared publicly. Authorized users with local parquet extracts conforming to the schema documented in `data/extract_wpad.py` configure paths via environment variables:
 
-## CodeOcean capsule
+```bash
+export PEARL_DATA_PATH=/path/to/real_inputs
+export PEARL_PROCESSED_PATH=/path/to/processed
+export PEARL_SVI_PATH=/path/to/processed/svi_by_zip.parquet
+export PEARL_OUTPUT_BASE=/path/to/outputs
+export PEARL_FIGURES_DIR=/path/to/figures_png
 
-Capsule contents (DOI to be assigned on acceptance):
+# Step 1: Primary leak-free 5-cohort pipeline, action validation, onboarding 2x2, T7, and B=200 bootstrap
+python scripts/pearl_v6_revision.py
 
-- Pipeline code (this repository, archived at the version-pinned tag)
-- Synthetic data generator (`data/synthetic_generator.py`)
-- Pre-pinned environment (Python 3.12, all `requirements.txt` versions)
-- Reproduction script: `scripts/run_pipeline.py --synthetic --n_patients 50000`
-- Expected outputs (`notebooks/pearl/outputs/results/*.csv`) for byte-level diff
-- Example figures (`notebooks/pearl/outputs/figures/*.pdf`)
+# Step 2: Daily pre-action acute-care recency (7/14/30/90d + IP), strictly pre-index sensitivity, Camden analog
+python scripts/pearl_v6_extended.py
 
-The capsule does not include real ACO data. Reviewers can rerun the synthetic
-pipeline in-browser and verify outputs match the expected files supplied with
-the capsule.
+# Step 3: Regenerate all main and supplementary figures strictly from canonical JSON/CSVs
+python scripts/make_v6_figures.py
+```
 
-## Real-data replication
+### Expected Input Schema (`PEARL_DATA_PATH` / `PEARL_PROCESSED_PATH`)
 
-The full pipeline expects the following parquet files in
-`PEARL_DATA_PATH` (or `data/real_inputs/` by default):
-
-| File | Purpose |
+| File | Description |
 |---|---|
-| `signal_risk_latest.parquet` | risk scores and condition flags |
-| `clinical_summary.parquet` | Charlson index, diagnosis flags |
-| `pharmacy_summary.parquet` | medication fill counts |
-| `outcomes_monthly.parquet` | monthly utilization aggregates |
-| `member_status_event.parquet` | enrollment and onboarding event log |
-| `hospital_visits.parquet` | inpatient and ED visit records |
-| `member_goals.parquet` | care management intervention assignments |
-| `member_attributes.parquet` | demographics and risk score |
-| `eligibility.parquet` | Medicaid coverage windows |
-| `member_patient_map.parquet` | identifier crosswalk |
+| `member_attributes.parquet` | Baseline demographics, enrollment attributes, and rising-risk score |
+| `member_goals.parquet` | Time-stamped care-plan goals (category and deletion flags) |
+| `member_encounters.parquet` | Completed care-team encounters and clinician disciplines |
+| `hospital_visits.parquet` | Daily inpatient admission and emergency department visit feed |
+| `outcomes_monthly.parquet` | Strictly prior monthly utilization and spending summaries |
+| `member_status_event.parquet` | Enrollment and staggered onboarding status transitions |
+| `eligibility.parquet` | Health-plan state, race/ethnicity, ZIP code, and coverage spans |
+| `member_patient_map.parquet` | De-identified internal linkage table |
+| `signal_risk_latest.parquet` | Risk-model snapshot flags (omitted in strictly pre-index sensitivity) |
+| `clinical_summary.parquet` | Claims comorbidity summaries (omitted in strictly pre-index sensitivity) |
+| `pharmacy_summary.parquet` | Prior 90-day pharmacy fill counts and adherence indicators |
+| `svi_by_zip.parquet` | Built from public CDC/ATSDR 2022 SVI + Census 2020 ZCTA-tract files via `scripts/build_svi.py` |
 
-Schema definitions are in `data/extract_wpad.py`. The DUA template is available
-from the corresponding author (sanjay.basu@ucsf.edu).
+## 4. Public Governance Guarantees
 
-## Audit checklist
-
-For an external auditor verifying that manuscript numbers match canonical pipeline output:
-
-```bash
-# Run the full real-data pipeline (requires DUA)
-python scripts/run_pipeline.py --waymark --skip_arena
-
-# Verify primary numbers match the manuscript
-grep -E "Behavioral Policy|PEARL.MoE Router|BehavioralCloning SFT" \
-  notebooks/pearl/outputs/results/main_results_table.csv
-
-# Expected manuscript values:
-#   Behavioral Policy IMI = 0.270 (manuscript: 27.0%)
-#   PEARL (MoE Router) IMI = 0.160 (manuscript: 16.0%)
-#   BehavioralCloning SFT (C4) IMI = 0.044 (manuscript: 4.4%)
-#   Behavioral DR-OPE = 0.0396 (manuscript: 0.040)
-#   PEARL (MoE Router) DR-OPE = 0.0413 (manuscript: 0.041)
-#   PEARL ESS = 6995, Behavioral ESS = 2670
-
-# Verify sensitivity analysis primary IMI
-grep -E ",True,0\.[0-9]" notebooks/pearl/outputs/results/sensitivity_results.csv
-# Expected: imi_estimate = 0.1603 across all primary-value rows (16.0%)
-```
+- Zero patient-level data, individual records, or patient-fitted binary model files are committed to this repository or archived on Zenodo.
+- `.gitignore` excludes all `.csv`, `.parquet`, `.jsonl`, `.joblib`, `.pkl`, and output directories.
+- Pre-registration protocol: [https://doi.org/10.17605/OSF.IO/D69M2](https://doi.org/10.17605/OSF.IO/D69M2).
+- Software archive (all versions): [https://doi.org/10.5281/zenodo.22236900](https://doi.org/10.5281/zenodo.22236900).

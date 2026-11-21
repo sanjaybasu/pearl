@@ -20,7 +20,7 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from docx.enum.text import WD_LINE_SPACING
 
-PEARL_DIR = Path("/Users/sanjaybasu/waymark-local/notebooks/pearl")
+PEARL_DIR = Path(os.environ.get("PEARL_NOTEBOOKS_DIR", str(Path(__file__).resolve().parents[1] / "notebooks" / "pearl")))
 FIGS_DIR = PEARL_DIR / "figures_png"
 OUTPUT_DIR = PEARL_DIR
 

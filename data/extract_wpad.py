@@ -34,6 +34,8 @@ Usage:
   # drop-in for SyntheticPopulation in run_pipeline.py --waymark mode
 """
 
+import os
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass, field
@@ -42,7 +44,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # ── Data paths ────────────────────────────────────────────────────────────────
-DATA_DIR = "/Users/sanjaybasu/waymark-local/data/real_inputs"
+DATA_DIR = os.environ.get("PEARL_DATA_PATH", str(Path(__file__).resolve().parents[1] / "data" / "real_inputs"))
 
 # ── PEARL intervention taxonomy (14 specific next best action categories) ──────
 INTERVENTIONS = [
@@ -171,8 +173,8 @@ def _load_raw() -> dict:
     except Exception:
         d["real_cohort"] = pd.DataFrame()
 
-    # Enriched clinical data from lighthouse/coredb (pulled 2026-04-20)
-    PROCESSED_DIR = "/Users/sanjaybasu/waymark-local/data/processed"
+    # Enriched clinical summaries (requires local DUA-governed parquet extracts)
+    PROCESSED_DIR = os.environ.get("PEARL_PROCESSED_PATH", str(Path(DATA_DIR).parent / "processed"))
     try:
         d["signal_risk"] = pd.read_parquet(f"{PROCESSED_DIR}/signal_risk_latest.parquet")
         print(f"    signal_risk:      {len(d['signal_risk']):,} rows (MIRA scores + condition flags)")

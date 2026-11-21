@@ -15,16 +15,18 @@ Sources (public, no credential required):
 
 Writes data/processed/svi_by_zip.parquet
 """
+import os
 import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-EXT = Path("/Users/sanjaybasu/waymark-local/data/external/svi")
-OUT = Path("/Users/sanjaybasu/waymark-local/data/processed")
+_ROOT = Path(__file__).resolve().parents[1]
+EXT = Path(os.environ.get("PEARL_SVI_EXTERNAL_DIR", str(_ROOT / "data" / "external" / "svi")))
+OUT = Path(os.environ.get("PEARL_PROCESSED_PATH", str(_ROOT / "data" / "processed")))
 OUT.mkdir(parents=True, exist_ok=True)
-RAW = Path("/Users/sanjaybasu/waymark-local/data/real_inputs")
+RAW = Path(os.environ.get("PEARL_DATA_PATH", str(_ROOT / "data" / "real_inputs")))
 
 STATES = ["Washington", "Virginia", "Ohio"]
 # CDC codes missing values as -999
